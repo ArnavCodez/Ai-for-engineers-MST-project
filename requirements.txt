@@ -1,0 +1,15 @@
+# Python 3.11. Versions pinned to what we installed on 2026-10-07,
+# so every teammate gets exactly the same libraries.
+# The full list (with sub-dependencies) is in outputs/results/pip_freeze.txt
+numpy==2.4.6
+pandas==3.0.6
+pyarrow==25.0.1
+matplotlib==3.11.2
+seaborn==0.13.2
+scikit-learn==1.9.1
+lightgbm==4.7.0
+joblib==1.6.0
+jupyter==1.1.1
+nbconvert==7.17.1
+ipykernel==7.4.0
+kagglehub==1.0.2

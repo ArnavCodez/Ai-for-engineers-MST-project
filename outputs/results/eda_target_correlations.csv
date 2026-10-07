@@ -1,0 +1,14 @@
+,r_with_stator_winding,role
+stator_tooth,0.9701634791294853,forbidden
+stator_yoke,0.8621671219467383,forbidden
+pm,0.7962900377508284,forbidden
+i_d,-0.6321643232966627,input
+coolant,0.5047200670394661,input
+motor_speed,0.4242696043838757,input
+ambient,0.3394337496402604,input
+u_d,-0.2290598167145004,input
+torque,0.10534060612999857,input
+i_q,0.07574494456445784,input
+u_q,0.031090043921906053,input
+i_s (current magnitude),0.5834153808392488,derived (plot only)
+i_s_sq (current squared),0.5422834434658702,derived (plot only)

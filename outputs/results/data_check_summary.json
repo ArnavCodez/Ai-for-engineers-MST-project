@@ -1,0 +1,111 @@
+{
+  "csv_file": "data/raw/measures_v2.csv",
+  "kaggle_dataset": "wkirgsn/electric-motor-temperature (version 3)",
+  "csv_size_mb": 300.1,
+  "n_rows": 1330816,
+  "n_columns": 13,
+  "columns": [
+    "u_q",
+    "coolant",
+    "stator_winding",
+    "u_d",
+    "stator_tooth",
+    "motor_speed",
+    "i_d",
+    "i_q",
+    "pm",
+    "stator_yoke",
+    "ambient",
+    "torque",
+    "profile_id"
+  ],
+  "n_profiles": 69,
+  "profile_id_min": 2,
+  "profile_id_max": 81,
+  "total_hours": 184.84,
+  "rows_per_profile_min": 2176,
+  "rows_per_profile_median": 17142.0,
+  "rows_per_profile_max": 43971,
+  "hours_per_profile_min": 0.302,
+  "hours_per_profile_median": 2.381,
+  "hours_per_profile_max": 6.107,
+  "n_blocks_in_file": 69,
+  "n_profiles_not_contiguous": 0,
+  "file_sorted_by_profile_id": false,
+  "median_step_stator_winding_file_order_C": 0.02208,
+  "median_step_stator_winding_shuffled_C": 28.85482,
+  "p999_step_stator_winding_file_order_C": 0.55487,
+  "max_step_stator_winding_file_order_C": 1.39394,
+  "missing_values_total": 0,
+  "duplicate_rows": 0,
+  "duplicate_rows_ignoring_profile_id": 0,
+  "temperature_limits_C": [
+    -20,
+    200
+  ],
+  "temperature_range_check": [
+    {
+      "column": "coolant",
+      "min_C": 10.62,
+      "max_C": 101.6,
+      "inside_limits": true
+    },
+    {
+      "column": "ambient",
+      "min_C": 8.78,
+      "max_C": 30.71,
+      "inside_limits": true
+    },
+    {
+      "column": "stator_winding",
+      "min_C": 18.59,
+      "max_C": 141.36,
+      "inside_limits": true
+    },
+    {
+      "column": "stator_tooth",
+      "min_C": 18.13,
+      "max_C": 111.95,
+      "inside_limits": true
+    },
+    {
+      "column": "stator_yoke",
+      "min_C": 18.08,
+      "max_C": 101.15,
+      "inside_limits": true
+    },
+    {
+      "column": "pm",
+      "min_C": 20.86,
+      "max_C": 113.61,
+      "inside_limits": true
+    }
+  ],
+  "motor_speed_min_rpm": -275.55,
+  "motor_speed_max_rpm": 6000.02,
+  "torque_min_Nm": -246.47,
+  "torque_max_Nm": 261.01,
+  "negative_speed_rows": 87308,
+  "negative_torque_rows": 446946,
+  "memory_float64_mb": 138.4,
+  "memory_float32_mb": 74.5,
+  "memory_saved_pct": 46.2,
+  "max_value_change_after_float32": 0.00024414017207163852,
+  "max_value_change_after_float32_per_column": {
+    "u_q": 7.629331292946517e-06,
+    "coolant": 3.814695062942519e-06,
+    "stator_winding": 7.621335953444941e-06,
+    "u_d": 7.629281668641852e-06,
+    "stator_tooth": 3.814663230627957e-06,
+    "motor_speed": 0.00024414017207163852,
+    "i_d": 1.4662497505923966e-05,
+    "i_q": 1.5258264795647847e-05,
+    "pm": 3.8146928886817477e-06,
+    "stator_yoke": 3.814686095893194e-06,
+    "ambient": 9.536735099402449e-07,
+    "torque": 7.62939055221068e-06
+  },
+  "parquet_size_mb": 72.2,
+  "csv_load_seconds": 7.66,
+  "parquet_load_seconds": 0.42
+}

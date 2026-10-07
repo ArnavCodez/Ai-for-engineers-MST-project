@@ -1,0 +1,754 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Showcase for Phases 1-2. Data: eda_data.js (written by notebooks/02_eda.ipynb, section 15). Open this file in any browser. -->
+<title>Motor Winding Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: motor-nameplate header, then full-width chapters (idea, session explorer, lag, correlation, operating map, insights); charts size to their column */
+:root {
+  --bg: #edf0f3;
+  --panel: #ffffff;
+  --ink: #18212b;
+  --muted: #566271;
+  --line: #d3dae2;
+  --grid: #e6eaef;
+  --copper: #a9501f;
+  --copper-soft: #f5e4d9;
+  --coolant: #2d6fa3;
+  --ambient: #7a8794;
+  --current: #3a7d44;
+  --speed: #6b4fa0;
+  --torque: #a87600;
+  --forbid: #9aa5b1;
+  --plate: #202a35;
+  --plate-2: #2a3643;
+  --plate-ink: #eef2f6;
+  --plate-muted: #a9b6c3;
+  --rivet: #6f7d8c;
+  --focus: #2d5f8a;
+  --f-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --r: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e141a; --panel: #161f28; --ink: #e4eaf0; --muted: #97a4b2; --line: #283441; --grid: #1f2a35;
+    --copper: #e58b58; --copper-soft: #3b2416; --coolant: #6fa8dc; --ambient: #9aa7b4; --current: #6cc07a;
+    --speed: #a98ee0; --torque: #e0b44f; --forbid: #5d6b79;
+    --plate: #1b2530; --plate-2: #24303d; --plate-ink: #eef2f6; --plate-muted: #a2afbd; --rivet: #4c5967; --focus: #79aee0;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e141a; --panel: #161f28; --ink: #e4eaf0; --muted: #97a4b2; --line: #283441; --grid: #1f2a35;
+  --copper: #e58b58; --copper-soft: #3b2416; --coolant: #6fa8dc; --ambient: #9aa7b4; --current: #6cc07a;
+  --speed: #a98ee0; --torque: #e0b44f; --forbid: #5d6b79;
+  --plate: #1b2530; --plate-2: #24303d; --plate-ink: #eef2f6; --plate-muted: #a2afbd; --rivet: #4c5967; --focus: #79aee0;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-inline: 20px; padding-block: 24px 56px; display: grid; gap: 22px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+h2 { font-family: var(--f-display); font-weight: 600; font-size: 1.7rem; letter-spacing: 0.01em; line-height: 1.1; }
+h3 { font-size: 1rem; font-weight: 600; }
+p { margin: 0; }
+.mono, code { font-family: var(--f-mono); font-size: 0.88em; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* Nameplate */
+.plate {
+  background-color: var(--plate);
+  background-image:
+    radial-gradient(circle at 16px 16px, var(--rivet) 0 3px, transparent 3.5px),
+    radial-gradient(circle at calc(100% - 16px) 16px, var(--rivet) 0 3px, transparent 3.5px),
+    radial-gradient(circle at 16px calc(100% - 16px), var(--rivet) 0 3px, transparent 3.5px),
+    radial-gradient(circle at calc(100% - 16px) calc(100% - 16px), var(--rivet) 0 3px, transparent 3.5px),
+    repeating-linear-gradient(90deg, transparent 0 3px, rgba(255,255,255,0.018) 3px 4px);
+  color: var(--plate-ink); border-radius: 8px; padding: 28px 36px 28px; display: grid; gap: 14px;
+}
+.eyebrow { font-family: var(--f-mono); font-size: 0.74rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--plate-muted); }
+.plate h1 { font-family: var(--f-display); font-weight: 600; font-size: clamp(2.1rem, 5vw, 3.5rem); line-height: 1.02; }
+.plate h1 span { color: #e58b58; }
+.plate .lede { color: var(--plate-muted); max-width: 68ch; }
+.specs { margin: 4px 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); border-top: 1px solid var(--plate-2); }
+.specs div { padding: 10px 12px 0 0; min-width: 0; }
+.specs dt { font-family: var(--f-mono); font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--plate-muted); }
+.specs dd { margin: 2px 0 0; font-family: var(--f-mono); font-size: 0.98rem; font-variant-numeric: tabular-nums; }
+
+/* Chapters */
+.chapter { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 22px 24px 24px; display: grid; gap: 16px; min-width: 0; }
+.chapter-head { display: grid; gap: 6px; }
+.kicker { font-family: var(--f-mono); font-size: 0.72rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--copper); }
+.chapter-head p { color: var(--muted); max-width: 72ch; }
+.two { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 26px; align-items: start; }
+.caption { font-size: 0.86rem; color: var(--muted); }
+
+/* Virtual sensor diagram */
+.flow { display: grid; grid-template-columns: minmax(0, 1fr) 46px minmax(0, 0.9fr) 46px minmax(0, 0.8fr); align-items: center; gap: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--f-mono); font-size: 0.78rem; padding: 3px 8px; border-radius: 4px; border: 1px solid var(--line); background: var(--bg); white-space: nowrap; }
+.chip.bad { color: var(--muted); text-decoration: line-through; border-style: dashed; background: transparent; }
+.arrow { height: 2px; background: var(--muted); position: relative; margin-inline: 8px; }
+.arrow::after { content: ""; position: absolute; right: -1px; top: -5px; border: 6px solid transparent; border-left: 8px solid var(--muted); border-right: 0; }
+.box { border: 2px solid var(--ink); border-radius: 6px; padding: 12px; text-align: center; display: grid; gap: 2px; }
+.box b { font-family: var(--f-display); font-size: 1.25rem; font-weight: 600; }
+.box span { font-size: 0.78rem; color: var(--muted); }
+.out { border: 2px solid var(--copper); background: var(--copper-soft); border-radius: 6px; padding: 12px; text-align: center; display: grid; gap: 2px; }
+.out b { font-family: var(--f-display); font-size: 1.25rem; font-weight: 600; color: var(--copper); }
+.out span { font-size: 0.78rem; color: var(--muted); }
+.forbidden { margin-top: 14px; display: grid; gap: 6px; }
+.forbidden p { font-size: 0.84rem; color: var(--muted); }
+
+/* SVG charts */
+.chart { width: 100%; min-width: 0; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.ax { stroke: var(--line); stroke-width: 1; }
+.gridline { stroke: var(--grid); stroke-width: 1; }
+.tick { fill: var(--muted); font-family: var(--f-mono); font-size: 10.5px; }
+.axlabel { fill: var(--muted); font-family: var(--f-body); font-size: 11.5px; }
+.s-winding { stroke: var(--copper); }
+.s-coolant { stroke: var(--coolant); }
+.s-ambient { stroke: var(--ambient); }
+.s-current { stroke: var(--current); }
+.s-speed { stroke: var(--speed); }
+.s-torque { stroke: var(--torque); }
+.line { fill: none; stroke-width: 1.6; stroke-linejoin: round; }
+.line.thick { stroke-width: 2.4; }
+.cross { stroke: var(--ink); stroke-width: 1; stroke-dasharray: 3 3; opacity: 0.55; }
+.dot { stroke: var(--panel); stroke-width: 1.5; }
+.f-winding { fill: var(--copper); } .f-coolant { fill: var(--coolant); } .f-ambient { fill: var(--ambient); }
+.f-current { fill: var(--current); } .f-speed { fill: var(--speed); } .f-torque { fill: var(--torque); }
+.f-muted { fill: var(--forbid); } .f-ink { fill: var(--ink); }
+.anno { fill: var(--ink); font-family: var(--f-body); font-size: 11.5px; }
+
+/* Explorer */
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: end; }
+.field { display: grid; gap: 4px; }
+.field label { font-family: var(--f-mono); font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+select { font: inherit; color: inherit; background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; min-width: 210px; }
+.stats { display: flex; flex-wrap: wrap; gap: 8px; }
+.stat { border: 1px solid var(--line); border-radius: 4px; padding: 6px 10px; display: grid; gap: 0; min-width: 0; }
+.stat span { font-family: var(--f-mono); font-size: 0.66rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.stat b { font-variant-numeric: tabular-nums; font-weight: 600; }
+.strip-wrap { overflow-x: auto; }
+.strip-bar { cursor: pointer; }
+.strip-bar.train { fill: var(--coolant); opacity: 0.55; }
+.strip-bar.train:hover { opacity: 0.9; }
+.strip-bar.sel { fill: var(--copper); opacity: 1; }
+.strip-bar.test { fill: url(#hatch); cursor: not-allowed; }
+.hatch-line { stroke: var(--forbid); stroke-width: 2; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 0.82rem; color: var(--muted); }
+.legend i { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 6px; border-radius: 2px; }
+.readout { font-family: var(--f-mono); font-size: 0.8rem; color: var(--muted); min-height: 1.4em; font-variant-numeric: tabular-nums; }
+.readout b { color: var(--ink); font-weight: 500; }
+.charts { display: grid; gap: 4px; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+
+/* Correlation */
+.stack { display: grid; gap: 26px; }
+.bars-col { max-width: 760px; display: grid; gap: 8px; }
+.bars { display: grid; gap: 5px; }
+.barrow { display: grid; grid-template-columns: 200px minmax(0, 1fr) 54px; gap: 10px; align-items: center; font-size: 0.86rem; }
+.barrow .lab { font-family: var(--f-mono); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.barrow .lab.bad { color: var(--muted); text-decoration: line-through; }
+.barrow .track { position: relative; height: 14px; background: var(--grid); border-radius: 2px; }
+.barrow .track .mid { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--muted); }
+.barrow .fill { position: absolute; top: 0; height: 100%; border-radius: 2px; }
+.barrow .val { font-family: var(--f-mono); font-size: 0.8rem; text-align: right; font-variant-numeric: tabular-nums; }
+.heat-wrap { overflow-x: auto; max-width: 900px; }
+.heat { display: grid; gap: 2px; font-family: var(--f-mono); font-size: 0.68rem; }
+.heat .cell { aspect-ratio: 1; display: grid; place-items: center; border-radius: 2px; color: var(--ink); cursor: default; min-width: 26px; }
+.heat .hl { color: var(--muted); display: flex; align-items: center; justify-content: flex-end; padding-right: 4px; white-space: nowrap; }
+.heat .vl { color: var(--muted); writing-mode: vertical-rl; transform: rotate(180deg); display: flex; align-items: center; justify-content: flex-start; padding-top: 4px; height: 112px; white-space: nowrap; }
+.heat .bad { text-decoration: line-through; }
+
+/* Op map */
+.opcell { stroke: none; }
+.ramp { height: 10px; border-radius: 2px; background: linear-gradient(90deg, #2d6fa3, #8fb7c9, #f0d79a, #e08a4f, #b0391b); }
+.ramp-labels { display: flex; justify-content: space-between; font-family: var(--f-mono); font-size: 0.72rem; color: var(--muted); }
+
+/* Insights */
+.insights { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; counter-reset: i; }
+.insights li { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 12px; counter-increment: i; }
+.insights li::before { content: counter(i); font-family: var(--f-display); font-weight: 700; font-size: 1.4rem; color: var(--copper); line-height: 1.2; }
+.insights b { font-weight: 600; }
+.footer { font-size: 0.82rem; color: var(--muted); display: grid; gap: 4px; }
+
+@media (max-width: 900px) {
+  .two, .pair { grid-template-columns: minmax(0, 1fr); }
+  .flow { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .arrow { height: 22px; width: 2px; margin: 0 auto; }
+  .arrow::after { right: -5px; top: auto; bottom: -2px; border: 6px solid transparent; border-top: 8px solid var(--muted); border-bottom: 0; }
+}
+@media (max-width: 540px) {
+  .wrap { padding-inline: 16px; }
+  .plate { padding: 24px 22px; }
+  .chapter { padding: 18px 16px 20px; }
+  .barrow { grid-template-columns: 110px minmax(0, 1fr) 48px; }
+  select { min-width: 0; width: 100%; }
+}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header class="plate">
+    <span class="eyebrow">UCS321 MST · Statement 6 · Phases 1 and 2 · GE is the scenario, the data is Paderborn's</span>
+    <h1>Can we read a winding's temperature <span>without a sensor?</span></h1>
+    <p class="lede">A motor's copper winding ages faster the hotter it runs, but a sensor buried in it is costly and fragile. We want a model that works out the temperature from signals the controller already measures. This page shows what the data told us before we built anything.</p>
+    <dl class="specs" aria-label="Dataset facts">
+      <div><dt>Machine</dt><dd>50 kW PMSM</dd></div>
+      <div><dt>Sampling</dt><dd>2 Hz</dd></div>
+      <div><dt>Rows</dt><dd>1,330,816</dd></div>
+      <div><dt>Sessions</dt><dd>69</dd></div>
+      <div><dt>Recorded</dt><dd>184.84 h</dd></div>
+      <div><dt>Winding</dt><dd>18.59–141.36 °C</dd></div>
+    </dl>
+  </header>
+
+  <section class="chapter" aria-labelledby="ideaTitle">
+    <div class="chapter-head">
+      <span class="kicker">Phase 1 · the problem</span>
+      <h2 id="ideaTitle">A virtual sensor for the winding</h2>
+      <p>The model gets the eight signals a motor controller already has and outputs the winding temperature in °C. That's supervised regression: every training row comes with the real measured temperature.</p>
+    </div>
+    <div class="two">
+      <div>
+        <div class="flow">
+          <div class="chips" aria-label="Model inputs">
+            <span class="chip">ambient</span><span class="chip">coolant</span><span class="chip">u_d</span><span class="chip">u_q</span>
+            <span class="chip">i_d</span><span class="chip">i_q</span><span class="chip">motor_speed</span><span class="chip">torque</span>
+          </div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="box"><b>Regression model</b><span>plus "memory" features of the recent past (Phase 3)</span></div>
+          <div class="arrow" aria-hidden="true"></div>
+          <div class="out"><b>stator_winding</b><span>estimated now, in °C</span></div>
+        </div>
+        <div class="forbidden">
+          <div class="chips"><span class="chip bad">pm</span><span class="chip bad">stator_tooth</span><span class="chip bad">stator_yoke</span><span class="chip bad">profile_id</span></div>
+          <p>Never inputs. The three temperatures sit right next to the winding, and a motor that had them wouldn't need our model. <code>profile_id</code> only names the session, and is used to split the data.</p>
+        </div>
+      </div>
+      <div>
+        <h3>Why the temperature matters</h3>
+        <div class="chart" id="insulationChart" role="img" aria-label="Insulation class limits compared with the temperature range in our data"></div>
+        <p class="caption">Each insulation class (IEC 60085) has a maximum hot-spot temperature. A common rule of thumb says insulation life halves for every 10 °C hotter. Our data never goes above 141.36 °C, which is below Class F.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter" aria-labelledby="exTitle">
+    <div class="chapter-head">
+      <span class="kicker">Phase 2 · explore</span>
+      <h2 id="exTitle">Pick a training session and watch it heat up</h2>
+      <p>Each bar is one of the 69 recording sessions, longest first. The 6 hatched ones are the frozen test set: we picked them before exploring and never look at their signals, so the final exam stays fair. Click any blue bar, or use the list.</p>
+    </div>
+    <div class="controls">
+      <div class="field">
+        <label for="sessionSelect">Training session</label>
+        <select id="sessionSelect"></select>
+      </div>
+      <div class="stats" id="sessionStats"></div>
+    </div>
+    <div class="strip-wrap"><div class="chart" id="stripChart"></div></div>
+    <div class="legend">
+      <span><i style="background: var(--copper)"></i>stator_winding (target)</span>
+      <span><i style="background: var(--coolant)"></i>coolant</span>
+      <span><i style="background: var(--ambient)"></i>ambient</span>
+      <span><i style="background: var(--current)"></i>current magnitude i_s</span>
+      <span><i style="background: var(--speed)"></i>speed</span>
+      <span><i style="background: var(--torque)"></i>torque</span>
+    </div>
+    <div class="readout" id="readout" aria-live="polite">Move over a chart to read values. Each point is a 1-minute average.</div>
+    <div class="charts">
+      <div class="chart" id="cTemp"></div>
+      <div class="chart" id="cCurrent"></div>
+      <div class="pair">
+        <div class="chart" id="cSpeed"></div>
+        <div class="chart" id="cTorque"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter" aria-labelledby="lagTitle">
+    <div class="chapter-head">
+      <span class="kicker">Phase 2 · finding</span>
+      <h2 id="lagTitle">The winding remembers</h2>
+      <p>Heat is made by current squared (I²R), but the temperature doesn't jump when the current does. We shifted each session's temperature later in time and checked how well it lines up with the current. The match is best a few minutes later, so the model needs a memory of the recent past.</p>
+    </div>
+    <div class="two">
+      <div>
+        <div class="chart" id="lagChart" role="img" aria-label="Median lagged correlation curve"></div>
+        <p class="caption">Median over <span class="num" data-num="thermal_lag.sessions_analysed"></span> training sessions of at least 90 min: r = <span class="num" data-num="thermal_lag.median_curve_r_lag0"></span> with no shift, peaking at r = <span class="num" data-num="thermal_lag.median_curve_r_peak"></span> when the temperature is shifted <span class="num" data-num="thermal_lag.median_curve_peak_lag_min"></span> min later.</p>
+      </div>
+      <div>
+        <div class="chart" id="lagHist" role="img" aria-label="Histogram of each session's best lag"></div>
+        <p class="caption">Each session's own best shift: median <span class="num" data-num="thermal_lag.median_best_lag_min"></span> min (middle half <span class="num" data-num="thermal_lag.p25_best_lag_min"></span>–<span class="num" data-num="thermal_lag.p75_best_lag_min"></span> min). <span class="num" data-num="thermal_lag.sessions_best_lag_under_5_min"></span> of <span class="num" data-num="thermal_lag.sessions_analysed"></span> peak under 5 min.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter" aria-labelledby="corrTitle">
+    <div class="chapter-head">
+      <span class="kicker">Phase 2 · finding</span>
+      <h2 id="corrTitle">What moves with the winding temperature</h2>
+      <p>Pearson correlation r on the training rows (+1 = rise together, −1 = opposite, 0 = no straight-line link). The struck-out columns are the forbidden temperatures: their very high r is exactly why using them would be cheating.</p>
+    </div>
+    <div class="stack">
+      <div class="bars-col">
+        <h3>Correlation with stator_winding</h3>
+        <div class="bars" id="corrBars"></div>
+      </div>
+      <div>
+        <h3>All pairs</h3>
+        <div class="heat-wrap"><div class="heat" id="heat" role="img" aria-label="Correlation matrix of all measured columns"></div></div>
+        <p class="caption" id="heatReadout">Hover a cell to read it. torque and i_q: r = <span class="num" id="tqiq"></span>, so torque adds almost nothing beyond the current.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="chapter" aria-labelledby="opTitle">
+    <div class="chapter-head">
+      <span class="kicker">Phase 2 · finding</span>
+      <h2 id="opTitle">Where the motor ran, and how hot it was there</h2>
+      <p>Speed against torque for all training rows, cut into a grid. Each cell's colour is the average winding temperature measured there. The outline is the motor's torque–speed envelope: full torque at low speed, a falling limit at high speed.</p>
+    </div>
+    <div class="chart" id="opChart" role="img" aria-label="Average winding temperature over the speed-torque plane"></div>
+    <div style="max-width: 360px; display: grid; gap: 4px;">
+      <div class="ramp" aria-hidden="true"></div>
+      <div class="ramp-labels"><span id="rampMin"></span><span>average winding temperature</span><span id="rampMax"></span></div>
+    </div>
+    <p class="readout" id="opReadout">Hover a cell to read its average temperature and how many rows it holds.</p>
+  </section>
+
+  <section class="chapter" aria-labelledby="insTitle">
+    <div class="chapter-head">
+      <span class="kicker">Phase 2 · summary</span>
+      <h2 id="insTitle">Five things the data told us</h2>
+    </div>
+    <ol class="insights">
+      <li><div><b>The forbidden temperatures would leak.</b> stator_tooth reaches r = <span class="num" data-num="corr_with_target.stator_tooth"></span> with the target, while the best allowed input reaches only |r| = <span class="num" data-abs="corr_with_target.i_d"></span> (i_d).</div></li>
+      <li><div><b>No single signal is enough.</b> At the same current the winding can be cold or hot. We need several inputs together, and non-linear models.</div></li>
+      <li><div><b>The winding has thermal memory.</b> It follows the heating current a few minutes late (median best lag <span class="num" data-num="thermal_lag.median_best_lag_min"></span> min). That's why Phase 3 adds averages of the recent past (EWMA features over 1, 5, 15 and 45 min).</div></li>
+      <li><div><b>Coolant sets the floor, with its own delay.</b> The winding is usually <span class="num" data-num="winding_minus_coolant.median"></span> °C above the coolant, yet in <span class="num" data-num="winding_minus_coolant.pct_rows_below_zero"></span> % of rows it is below it, right after the coolant has been heated.</div></li>
+      <li><div><b>Sessions are very different.</b> Session medians run from <span class="num" data-num="session_median_range.0"></span> to <span class="num" data-num="session_median_range.1"></span> °C. So we split by whole sessions and report errors per session.</div></li>
+    </ol>
+  </section>
+
+  <footer class="footer">
+    <span>Data: Kaggle "Electric Motor Temperature" (wkirgsn), version 3, Paderborn University LEA test bench. Training sessions only; test sessions <span id="testIds"></span> stay locked until Phase 5.</span>
+    <span>Every number here comes from <code>outputs/results/eda_summary.json</code> and <code>notebooks/02_eda.ipynb</code> in the team repo.</span>
+  </footer>
+</div>
+
+<script src="eda_data.js"></script>
+
+<script>
+(function () {
+  "use strict";
+  var D = window.EDA_DATA;
+  var S = D.summary;
+  var NS = "http://www.w3.org/2000/svg";
+
+  function $(id) { return document.getElementById(id); }
+  function svgEl(tag, attrs, parent) {
+    var n = document.createElementNS(NS, tag);
+    for (var k in attrs) n.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(n);
+    return n;
+  }
+  function txt(parent, x, y, s, cls, anchor) {
+    var t = svgEl("text", { x: x, y: y, "class": cls || "tick", "text-anchor": anchor || "middle" }, parent);
+    t.textContent = s;
+    return t;
+  }
+  function niceTicks(min, max, count) {
+    var span = max - min || 1;
+    var step = Math.pow(10, Math.floor(Math.log10(span / count)));
+    var err = (count * step) / span;
+    if (err <= 0.15) step *= 10; else if (err <= 0.35) step *= 5; else if (err <= 0.75) step *= 2;
+    var ticks = [];
+    for (var v = Math.ceil(min / step) * step; v <= max + 1e-9; v += step) ticks.push(+v.toFixed(10));
+    return ticks;
+  }
+  function get(obj, path) {
+    return path.split(".").reduce(function (o, k) { return o == null ? o : o[k]; }, obj);
+  }
+  function fmt(v) {
+    if (typeof v !== "number") return String(v);
+    if (Number.isInteger(v)) return v.toLocaleString("en-US");
+    return String(v);
+  }
+  function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+  // Fill numbers from the results summary
+  document.querySelectorAll("[data-num]").forEach(function (n) { n.textContent = fmt(get(S, n.getAttribute("data-num"))); });
+  document.querySelectorAll("[data-abs]").forEach(function (n) { n.textContent = fmt(Math.abs(get(S, n.getAttribute("data-abs")))); });
+  $("testIds").textContent = S.test_profiles.join(", ");
+
+  // ---------- Insulation scale ----------
+  function drawInsulation() {
+    var box = $("insulationChart");
+    box.textContent = "";
+    var W = box.clientWidth || 480, H = 150, L = 12, R = 14;
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, height: H }, box);
+    var x = function (t) { return L + (t / 190) * (W - L - R); };
+    svgEl("line", { x1: x(0), x2: x(190), y1: 96, y2: 96, "class": "ax" }, svg);
+    [0, 25, 50, 75, 100, 125, 150, 175].forEach(function (t) {
+      svgEl("line", { x1: x(t), x2: x(t), y1: 96, y2: 100, "class": "ax" }, svg);
+      txt(svg, x(t), 114, t, "tick");
+    });
+    txt(svg, (W) / 2, 136, "Temperature (°C)", "axlabel");
+    var lo = S.target_train_stats.min, hi = S.target_train_stats.max;
+    svgEl("rect", { x: x(lo), y: 70, width: x(hi) - x(lo), height: 16, rx: 3, "class": "f-winding", opacity: 0.85 }, svg);
+    txt(svg, x(lo) + 4, 64, "our winding readings " + lo.toFixed(2) + "–" + hi.toFixed(2) + " °C", "anno", "start");
+    var classes = [["A", 105], ["E", 120], ["B", 130], ["F", 155], ["H", 180]];
+    classes.forEach(function (c, i) {
+      var cx = x(c[1]);
+      svgEl("line", { x1: cx, x2: cx, y1: 14 + (i % 2) * 14, y2: 96, "class": "cross" }, svg);
+      txt(svg, cx, 10 + (i % 2) * 14, c[0] + " " + c[1], "tick");
+    });
+  }
+
+  // ---------- Session strip ----------
+  var trainSessions = D.sessions.filter(function (s) { return !s.test; });
+  var byLength = D.sessions.slice().sort(function (a, b) { return b.hours - a.hours; });
+  var current = D.traces["20"] ? 20 : trainSessions[0].id;
+  try { var saved = parseInt(localStorage.getItem("mst-explorer-session"), 10); if (D.traces[String(saved)]) current = saved; } catch (e) {}
+
+  var sel = $("sessionSelect");
+  trainSessions.slice().sort(function (a, b) { return a.id - b.id; }).forEach(function (s) {
+    var o = document.createElement("option");
+    o.value = s.id;
+    o.textContent = "Session " + s.id + " · " + s.hours.toFixed(2) + " h";
+    sel.appendChild(o);
+  });
+  sel.addEventListener("change", function () { select(parseInt(sel.value, 10)); });
+
+  function drawStrip() {
+    var box = $("stripChart");
+    box.textContent = "";
+    var n = byLength.length;
+    var W = Math.max(box.clientWidth || 600, n * 9), H = 92, B = 18;
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, height: H, style: "min-width:" + (n * 9) + "px" }, box);
+    var defs = svgEl("defs", {}, svg);
+    var pat = svgEl("pattern", { id: "hatch", width: 5, height: 5, patternUnits: "userSpaceOnUse", patternTransform: "rotate(45)" }, defs);
+    svgEl("line", { x1: 0, y1: 0, x2: 0, y2: 5, "class": "hatch-line" }, pat);
+    var maxH = byLength[0].hours;
+    var bw = W / n;
+    byLength.forEach(function (s, i) {
+      var h = (s.hours / maxH) * (H - B - 6);
+      var r = svgEl("rect", { x: i * bw + 1, y: H - B - h, width: Math.max(bw - 2, 2), height: h, rx: 1,
+        "class": "strip-bar " + (s.test ? "test" : "train") + (s.id === current ? " sel" : "") }, svg);
+      var title = svgEl("title", {}, r);
+      title.textContent = "Session " + s.id + " · " + s.hours.toFixed(2) + " h" + (s.test ? " · test set, locked" : "");
+      if (!s.test) {
+        r.setAttribute("tabindex", "0");
+        r.setAttribute("role", "button");
+        r.setAttribute("aria-label", "Show session " + s.id);
+        r.addEventListener("click", function () { select(s.id); });
+        r.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(s.id); } });
+      }
+      if (n <= 80 && (i % 4 === 0)) txt(svg, i * bw + bw / 2, H - 4, s.id, "tick");
+    });
+  }
+
+  // ---------- Synchronised line charts ----------
+  var charts = [];
+  function lineChart(boxId, cfg) {
+    var box = $(boxId);
+    box.textContent = "";
+    var W = box.clientWidth || 600, H = cfg.height, L = 52, R = 12, T = 12, B = cfg.xAxis ? 34 : 14;
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, height: H }, box);
+    var n = cfg.series[0].values.length;
+    var xmax = Math.max(n - 1, 1);
+    var ymin = Infinity, ymax = -Infinity;
+    cfg.series.forEach(function (s) { s.values.forEach(function (v) { if (v < ymin) ymin = v; if (v > ymax) ymax = v; }); });
+    if (cfg.yZero) ymin = Math.min(ymin, 0);
+    var pad = (ymax - ymin) * 0.06 || 1; ymin -= pad; ymax += pad;
+    var x = function (i) { return L + (i / xmax) * (W - L - R); };
+    var y = function (v) { return T + (1 - (v - ymin) / (ymax - ymin)) * (H - T - B); };
+    niceTicks(ymin, ymax, cfg.height > 150 ? 5 : 3).forEach(function (t) {
+      svgEl("line", { x1: L, x2: W - R, y1: y(t), y2: y(t), "class": "gridline" }, svg);
+      txt(svg, L - 6, y(t) + 3.5, t, "tick", "end");
+    });
+    svgEl("line", { x1: L, x2: L, y1: T, y2: H - B, "class": "ax" }, svg);
+    svgEl("line", { x1: L, x2: W - R, y1: H - B, y2: H - B, "class": "ax" }, svg);
+    var yl = txt(svg, 12, (T + H - B) / 2, cfg.yLabel, "axlabel");
+    yl.setAttribute("transform", "rotate(-90 12 " + (T + H - B) / 2 + ")");
+    if (cfg.xAxis) {
+      niceTicks(0, xmax, 8).forEach(function (t) {
+        svgEl("line", { x1: x(t), x2: x(t), y1: H - B, y2: H - B + 4, "class": "ax" }, svg);
+        txt(svg, x(t), H - B + 15, t, "tick");
+      });
+      txt(svg, (L + W - R) / 2, H - 3, "Minutes since the session started", "axlabel");
+    }
+    cfg.series.forEach(function (s) {
+      var d = "";
+      s.values.forEach(function (v, i) { d += (i ? "L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1); });
+      svgEl("path", { d: d, "class": "line s-" + s.cls + (s.thick ? " thick" : "") }, svg);
+    });
+    var cross = svgEl("line", { x1: 0, x2: 0, y1: T, y2: H - B, "class": "cross", visibility: "hidden" }, svg);
+    var dots = cfg.series.map(function (s) { return svgEl("circle", { r: 3.5, "class": "dot f-" + s.cls, visibility: "hidden" }, svg); });
+    var hit = svgEl("rect", { x: L, y: T, width: W - L - R, height: H - T - B, fill: "transparent" }, svg);
+    function idxFromEvent(e) {
+      var rect = svg.getBoundingClientRect();
+      var px = ((e.clientX - rect.left) / rect.width) * W;
+      return Math.max(0, Math.min(xmax, Math.round(((px - L) / (W - L - R)) * xmax)));
+    }
+    hit.addEventListener("pointermove", function (e) { hover(idxFromEvent(e)); });
+    hit.addEventListener("pointerleave", function () { hover(null); });
+    var api = {
+      show: function (i) {
+        if (i === null) { cross.setAttribute("visibility", "hidden"); dots.forEach(function (d) { d.setAttribute("visibility", "hidden"); }); return; }
+        cross.setAttribute("x1", x(i)); cross.setAttribute("x2", x(i)); cross.setAttribute("visibility", "visible");
+        cfg.series.forEach(function (s, k) {
+          dots[k].setAttribute("cx", x(i)); dots[k].setAttribute("cy", y(s.values[i])); dots[k].setAttribute("visibility", "visible");
+        });
+      }
+    };
+    charts.push(api);
+    return api;
+  }
+
+  function hover(i) {
+    charts.forEach(function (c) { c.show(i); });
+    var r = $("readout");
+    if (i === null) { r.textContent = "Move over a chart to read values. Each point is a 1-minute average."; return; }
+    var tr = D.traces[String(current)];
+    r.textContent = "";
+    var parts = [["minute", i], ["winding", tr.w[i] + " °C"], ["coolant", tr.c[i] + " °C"], ["ambient", tr.a[i] + " °C"],
+      ["i_s", tr.i[i] + " A"], ["speed", tr.n[i] + " rpm"], ["torque", tr.t[i] + " Nm"]];
+    parts.forEach(function (p, k) {
+      if (k) r.appendChild(document.createTextNode("  ·  "));
+      r.appendChild(document.createTextNode(p[0] + " "));
+      var b = document.createElement("b"); b.textContent = p[1]; r.appendChild(b);
+    });
+  }
+
+  function drawSession() {
+    charts = [];
+    var tr = D.traces[String(current)];
+    lineChart("cTemp", { height: 230, yLabel: "°C", series: [
+      { values: tr.a, cls: "ambient" }, { values: tr.c, cls: "coolant" }, { values: tr.w, cls: "winding", thick: true }] });
+    lineChart("cCurrent", { height: 120, yLabel: "A", yZero: true, series: [{ values: tr.i, cls: "current" }] });
+    lineChart("cSpeed", { height: 120, yLabel: "rpm", xAxis: true, series: [{ values: tr.n, cls: "speed" }] });
+    lineChart("cTorque", { height: 120, yLabel: "Nm", xAxis: true, series: [{ values: tr.t, cls: "torque" }] });
+
+    var meta = D.sessions.filter(function (s) { return s.id === current; })[0];
+    var wmin = Math.min.apply(null, tr.w), wmax = Math.max.apply(null, tr.w);
+    var stats = $("sessionStats");
+    stats.textContent = "";
+    [["Length", meta.hours.toFixed(2) + " h"], ["Winding (1-min avg)", wmin.toFixed(1) + "–" + wmax.toFixed(1) + " °C"],
+     ["Coolant (1-min avg)", Math.min.apply(null, tr.c).toFixed(1) + "–" + Math.max.apply(null, tr.c).toFixed(1) + " °C"],
+     ["Peak current (1-min avg)", Math.max.apply(null, tr.i).toFixed(0) + " A"]].forEach(function (p) {
+      var d = document.createElement("div"); d.className = "stat";
+      var a = document.createElement("span"); a.textContent = p[0];
+      var b = document.createElement("b"); b.textContent = p[1];
+      d.appendChild(a); d.appendChild(b); stats.appendChild(d);
+    });
+  }
+
+  function select(id) {
+    current = id;
+    sel.value = String(id);
+    try { localStorage.setItem("mst-explorer-session", String(id)); } catch (e) {}
+    drawStrip();
+    drawSession();
+  }
+
+  // ---------- Lag charts ----------
+  function drawLag() {
+    var box = $("lagChart");
+    box.textContent = "";
+    var W = box.clientWidth || 520, H = 250, L = 48, R = 14, T = 16, B = 38;
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, height: H }, box);
+    var lags = D.lag.lags, med = D.lag.median;
+    var x = function (v) { return L + (v / 60) * (W - L - R); };
+    var y = function (v) { return T + (1 - (v + 0.1) / 1.0) * (H - T - B); };
+    [0, 0.2, 0.4, 0.6, 0.8].forEach(function (t) {
+      svgEl("line", { x1: L, x2: W - R, y1: y(t), y2: y(t), "class": "gridline" }, svg);
+      txt(svg, L - 6, y(t) + 3.5, t.toFixed(1), "tick", "end");
+    });
+    [0, 10, 20, 30, 40, 50, 60].forEach(function (t) { txt(svg, x(t), H - B + 15, t, "tick"); });
+    svgEl("line", { x1: L, x2: W - R, y1: H - B, y2: H - B, "class": "ax" }, svg);
+    svgEl("line", { x1: L, x2: L, y1: T, y2: H - B, "class": "ax" }, svg);
+    txt(svg, (L + W - R) / 2, H - 4, "Temperature shifted later by (minutes)", "axlabel");
+    var yl = txt(svg, 12, (T + H - B) / 2, "correlation r", "axlabel");
+    yl.setAttribute("transform", "rotate(-90 12 " + (T + H - B) / 2 + ")");
+    var d = "";
+    med.forEach(function (v, i) { d += (i ? "L" : "M") + x(lags[i]).toFixed(1) + " " + y(v).toFixed(1); });
+    svgEl("path", { d: d, "class": "line thick s-winding" }, svg);
+    var pk = S.thermal_lag.median_curve_peak_lag_min, pr = S.thermal_lag.median_curve_r_peak;
+    svgEl("line", { x1: x(pk), x2: x(pk), y1: T, y2: H - B, "class": "cross" }, svg);
+    svgEl("circle", { cx: x(pk), cy: y(pr), r: 4.5, "class": "dot f-winding" }, svg);
+    txt(svg, x(24), y(0.78), "● peak r = " + pr + " at " + pk + " min", "anno", "start");
+    svgEl("circle", { cx: x(0), cy: y(med[0]), r: 3.5, "class": "dot f-ink" }, svg);
+    txt(svg, x(24), y(0.68), "○ no shift: r = " + med[0], "anno", "start");
+  }
+
+  function drawLagHist() {
+    var box = $("lagHist");
+    box.textContent = "";
+    var W = box.clientWidth || 420, H = 250, L = 40, R = 10, T = 16, B = 38;
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, height: H }, box);
+    var best = D.lag.best.best_lag_min;
+    var labels = ["0–1", "1–2", "2–3", "3–4", "4–5", "5–10", "10+"];
+    var edges = [0, 1, 2, 3, 4, 5, 10, Infinity];
+    var counts = labels.map(function () { return 0; });
+    best.forEach(function (v) { for (var k = 0; k < labels.length; k++) { if (v >= edges[k] && v < edges[k + 1]) { counts[k]++; break; } } });
+    var cmax = Math.max.apply(null, counts);
+    var bw = (W - L - R) / labels.length;
+    var y = function (v) { return T + (1 - v / cmax) * (H - T - B); };
+    niceTicks(0, cmax, 4).forEach(function (t) {
+      svgEl("line", { x1: L, x2: W - R, y1: y(t), y2: y(t), "class": "gridline" }, svg);
+      txt(svg, L - 6, y(t) + 3.5, t, "tick", "end");
+    });
+    counts.forEach(function (c, k) {
+      svgEl("rect", { x: L + k * bw + 4, y: y(c), width: bw - 8, height: H - B - y(c), rx: 2, "class": k < 5 ? "f-winding" : "f-muted" }, svg);
+      txt(svg, L + k * bw + bw / 2, y(c) - 5, c, "tick");
+      txt(svg, L + k * bw + bw / 2, H - B + 15, labels[k], "tick");
+    });
+    svgEl("line", { x1: L, x2: W - R, y1: H - B, y2: H - B, "class": "ax" }, svg);
+    txt(svg, (L + W - R) / 2, H - 4, "Each session's best shift (minutes)", "axlabel");
+    var yl = txt(svg, 12, (T + H - B) / 2, "sessions", "axlabel");
+    yl.setAttribute("transform", "rotate(-90 12 " + (T + H - B) / 2 + ")");
+  }
+
+  // ---------- Correlation ----------
+  var FORBIDDEN = ["pm", "stator_tooth", "stator_yoke"];
+  function mix(hexA, hexB, t) {
+    function p(h) { h = h.replace("#", ""); if (h.length === 3) h = h.split("").map(function (c) { return c + c; }).join(""); return [0, 2, 4].map(function (i) { return parseInt(h.substr(i, 2), 16); }); }
+    var a = p(hexA), b = p(hexB);
+    return "rgb(" + a.map(function (v, i) { return Math.round(v + (b[i] - v) * t); }).join(",") + ")";
+  }
+  function corrColor(r) {
+    var base = cssVar("--panel") || "#ffffff";
+    return r >= 0 ? mix(base, cssVar("--copper") || "#a9501f", Math.min(1, Math.abs(r))) : mix(base, cssVar("--coolant") || "#2d6fa3", Math.min(1, Math.abs(r)));
+  }
+  function drawCorrBars() {
+    var box = $("corrBars");
+    box.textContent = "";
+    var entries = Object.keys(S.corr_with_target).map(function (k) { return [k, S.corr_with_target[k]]; });
+    entries.sort(function (a, b) { return Math.abs(b[1]) - Math.abs(a[1]); });
+    entries.forEach(function (e) {
+      var name = e[0], r = e[1];
+      var bad = FORBIDDEN.indexOf(name) !== -1;
+      var row = document.createElement("div"); row.className = "barrow";
+      var lab = document.createElement("span"); lab.className = "lab" + (bad ? " bad" : ""); lab.textContent = name; lab.title = bad ? name + " (forbidden input)" : name;
+      var track = document.createElement("span"); track.className = "track";
+      var mid = document.createElement("span"); mid.className = "mid";
+      var fill = document.createElement("span"); fill.className = "fill";
+      var w = Math.abs(r) * 50;
+      fill.style.width = w + "%";
+      fill.style.left = r >= 0 ? "50%" : (50 - w) + "%";
+      fill.style.background = bad ? "var(--forbid)" : (r >= 0 ? "var(--copper)" : "var(--coolant)");
+      track.appendChild(fill); track.appendChild(mid);
+      var val = document.createElement("span"); val.className = "val"; val.textContent = (r > 0 ? "+" : "") + r.toFixed(3);
+      row.appendChild(lab); row.appendChild(track); row.appendChild(val);
+      box.appendChild(row);
+    });
+  }
+  function drawHeat() {
+    var box = $("heat");
+    box.textContent = "";
+    var cols = D.corr.cols, vals = D.corr.values, n = cols.length;
+    box.style.gridTemplateColumns = "112px repeat(" + n + ", minmax(26px, 1fr))";
+    var corner = document.createElement("div"); box.appendChild(corner);
+    cols.forEach(function (c) { var h = document.createElement("div"); h.className = "vl" + (FORBIDDEN.indexOf(c) !== -1 ? " bad" : ""); h.textContent = c; box.appendChild(h); });
+    cols.forEach(function (rname, i) {
+      var h = document.createElement("div"); h.className = "hl" + (FORBIDDEN.indexOf(rname) !== -1 ? " bad" : ""); h.textContent = rname; box.appendChild(h);
+      cols.forEach(function (cname, j) {
+        var r = vals[i][j];
+        var cell = document.createElement("div"); cell.className = "cell";
+        cell.style.background = corrColor(r);
+        cell.textContent = Math.abs(r) >= 0.5 ? r.toFixed(1) : "";
+        cell.title = rname + " × " + cname + ": r = " + r.toFixed(3);
+        cell.addEventListener("mouseenter", function () { $("heatReadout").textContent = rname + " × " + cname + ": r = " + r.toFixed(3); });
+        box.appendChild(cell);
+      });
+    });
+    var ti = cols.indexOf("torque"), qi = cols.indexOf("i_q");
+    $("tqiq").textContent = vals[ti][qi].toFixed(3);
+  }
+
+  // ---------- Operating map ----------
+  var RAMP = ["#2d6fa3", "#8fb7c9", "#f0d79a", "#e08a4f", "#b0391b"];
+  function rampColor(t) {
+    t = Math.max(0, Math.min(1, t));
+    var seg = t * (RAMP.length - 1), k = Math.min(Math.floor(seg), RAMP.length - 2);
+    return mix(RAMP[k], RAMP[k + 1], seg - k);
+  }
+  function drawOp() {
+    var box = $("opChart");
+    box.textContent = "";
+    var W = box.clientWidth || 900, H = Math.min(420, Math.max(260, W * 0.42)), L = 52, R = 12, T = 10, B = 40;
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, height: H }, box);
+    var se = D.opgrid.speed_edges, te = D.opgrid.torque_edges;
+    var x = function (v) { return L + ((v - se[0]) / (se[se.length - 1] - se[0])) * (W - L - R); };
+    var y = function (v) { return T + (1 - (v - te[0]) / (te[te.length - 1] - te[0])) * (H - T - B); };
+    var temps = D.opgrid.cells.map(function (c) { return c[2]; });
+    var tmin = Math.floor(Math.min.apply(null, temps)), tmax = Math.ceil(Math.max.apply(null, temps));
+    $("rampMin").textContent = tmin + " °C"; $("rampMax").textContent = tmax + " °C";
+    [-200, -100, 0, 100, 200].forEach(function (t) {
+      svgEl("line", { x1: L, x2: W - R, y1: y(t), y2: y(t), "class": "gridline" }, svg);
+      txt(svg, L - 6, y(t) + 3.5, t, "tick", "end");
+    });
+    [0, 1000, 2000, 3000, 4000, 5000, 6000].forEach(function (t) {
+      svgEl("line", { x1: x(t), x2: x(t), y1: T, y2: H - B, "class": "gridline" }, svg);
+      txt(svg, x(t), H - B + 15, t, "tick");
+    });
+    D.opgrid.cells.forEach(function (c) {
+      var x0 = x(se[c[0]]), x1 = x(se[c[0] + 1]), y0 = y(te[c[1] + 1]), y1 = y(te[c[1]]);
+      var rect = svgEl("rect", { x: x0, y: y0, width: Math.max(x1 - x0 - 0.5, 0.5), height: Math.max(y1 - y0 - 0.5, 0.5),
+        fill: rampColor((c[2] - tmin) / (tmax - tmin)), "class": "opcell" }, svg);
+      rect.addEventListener("mouseenter", function () {
+        $("opReadout").textContent = "Speed " + se[c[0]] + " to " + se[c[0] + 1] + " rpm, torque " + te[c[1]] + " to " + te[c[1] + 1] +
+          " Nm: average winding " + c[2] + " °C over " + c[3].toLocaleString("en-US") + " rows";
+      });
+    });
+    svgEl("line", { x1: L, x2: W - R, y1: H - B, y2: H - B, "class": "ax" }, svg);
+    svgEl("line", { x1: L, x2: L, y1: T, y2: H - B, "class": "ax" }, svg);
+    txt(svg, (L + W - R) / 2, H - 4, "Motor speed (rpm)", "axlabel");
+    var yl = txt(svg, 12, (T + H - B) / 2, "Torque (Nm)", "axlabel");
+    yl.setAttribute("transform", "rotate(-90 12 " + (T + H - B) / 2 + ")");
+  }
+
+  // ---------- Render all ----------
+  function renderAll() {
+    drawInsulation();
+    sel.value = String(current);
+    drawStrip();
+    drawSession();
+    drawLag();
+    drawLagHist();
+    drawCorrBars();
+    drawHeat();
+    drawOp();
+  }
+  renderAll();
+
+  var resizeTimer = null, lastW = window.innerWidth;
+  window.addEventListener("resize", function () {
+    if (window.innerWidth === lastW) return;
+    lastW = window.innerWidth;
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(renderAll, 150);
+  });
+  try {
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () { drawHeat(); });
+    new MutationObserver(function () { drawHeat(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  } catch (e) {}
+})();
+</script>
+
+</body>
+</html>

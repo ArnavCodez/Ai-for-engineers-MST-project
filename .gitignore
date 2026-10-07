@@ -1,0 +1,18 @@
+# Virtual environment (each teammate makes their own)
+.venv/
+
+# Data: raw and processed (too big for git; everyone downloads it themselves)
+# Only data/README.md (provenance + download instructions) is committed.
+data/*
+!data/README.md
+
+# Saved models (big binary files)
+outputs/models/
+
+# Jupyter / Python caches
+.ipynb_checkpoints/
+__pycache__/
+
+# Never commit API keys or tokens
+kaggle.json
+.env

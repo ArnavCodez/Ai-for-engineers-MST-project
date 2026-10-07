@@ -1,0 +1,92 @@
+{
+  "split_file": "outputs/results/split_profiles.json",
+  "test_profiles": [
+    6,
+    7,
+    21,
+    61,
+    66,
+    81
+  ],
+  "n_train_sessions": 63,
+  "n_train_rows": 1189792,
+  "test_share_of_rows": 0.106,
+  "draws_needed": 1,
+  "target_train_stats": {
+    "count": 1189792.0,
+    "mean": 66.17,
+    "std": 28.979,
+    "min": 18.586,
+    "10%": 25.886,
+    "50%": 64.628,
+    "90%": 104.791,
+    "max": 141.363
+  },
+  "corr_with_target": {
+    "stator_tooth": 0.97,
+    "stator_yoke": 0.862,
+    "pm": 0.796,
+    "i_d": -0.632,
+    "coolant": 0.505,
+    "motor_speed": 0.424,
+    "ambient": 0.339,
+    "u_d": -0.229,
+    "torque": 0.105,
+    "i_q": 0.076,
+    "u_q": 0.031,
+    "i_s (current magnitude)": 0.583,
+    "i_s_sq (current squared)": 0.542
+  },
+  "winding_minus_coolant": {
+    "min": -29.658,
+    "median": 26.471,
+    "max": 121.389,
+    "pct_rows_below_zero": 4.752
+  },
+  "median_winding_by_speed_band": {
+    "< 1000 rpm": 49.05,
+    "1000\u20133000 rpm": 62.464,
+    "> 3000 rpm": 82.923
+  },
+  "session_median_range": [
+    19.881,
+    116.741
+  ],
+  "session_max_range": [
+    39.102,
+    141.363
+  ],
+  "thermal_lag": {
+    "sessions_analysed": 53,
+    "median_best_lag_min": 2.5,
+    "p25_best_lag_min": 1.0,
+    "p75_best_lag_min": 3.0,
+    "median_corr_at_lag0": 0.645,
+    "median_best_corr": 0.746,
+    "median_curve_peak_lag_min": 1.5,
+    "median_curve_r_lag0": 0.645,
+    "median_curve_r_peak": 0.746,
+    "sessions_best_lag_under_5_min": 47
+  },
+  "example_session": 20,
+  "example_step_minute": 74.7,
+  "low_ambient_rows_per_session": {
+    "44": 4,
+    "68": 1
+  },
+  "biggest_step": {
+    "deg_c": 1.394,
+    "session": 65,
+    "minute": 82.1
+  },
+  "figures": [
+    "eda_01_session_lengths.png",
+    "eda_02_session20_over_time.png",
+    "eda_03_histograms.png",
+    "eda_04_correlation_heatmap.png",
+    "eda_05_hexbin_current_and_coolant.png",
+    "eda_06_operating_region.png",
+    "eda_07_boxplots_per_session.png",
+    "eda_08_thermal_lag.png"
+  ]
+}
