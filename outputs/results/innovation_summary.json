@@ -1,0 +1,195 @@
+{
+  "model_used": "M6 MLP (64-32)",
+  "ablation": [
+    {
+      "variant": "full",
+      "n_features": 45,
+      "cv_rmse": 4.9191,
+      "cv_rmse_std": 0.7627,
+      "cv_mae": 3.1158,
+      "change_vs_full": 0.0
+    },
+    {
+      "variant": "no EWMA",
+      "n_features": 13,
+      "cv_rmse": 13.176,
+      "cv_rmse_std": 1.367,
+      "cv_mae": 9.3117,
+      "change_vs_full": 8.2569
+    },
+    {
+      "variant": "no engineered",
+      "n_features": 24,
+      "cv_rmse": 6.5609,
+      "cv_rmse_std": 0.6167,
+      "cv_mae": 4.5243,
+      "change_vs_full": 1.6418
+    },
+    {
+      "variant": "no torque",
+      "n_features": 39,
+      "cv_rmse": 4.8087,
+      "cv_rmse_std": 1.0329,
+      "cv_mae": 2.8856,
+      "change_vs_full": -0.1104
+    },
+    {
+      "variant": "raw only",
+      "n_features": 8,
+      "cv_rmse": 13.4075,
+      "cv_rmse_std": 1.3785,
+      "cv_mae": 9.689,
+      "change_vs_full": 8.4883
+    },
+    {
+      "variant": "with leakage (forbidden)",
+      "n_features": 48,
+      "cv_rmse": 1.1456,
+      "cv_rmse_std": 0.1122,
+      "cv_mae": 0.8484,
+      "change_vs_full": -3.7735
+    }
+  ],
+  "memory_curve": [
+    {
+      "memory": "no memory",
+      "longest_span_min": 0,
+      "n_features": 13,
+      "cv_rmse": 13.176,
+      "cv_rmse_std": 1.367,
+      "cv_mae": 9.3117
+    },
+    {
+      "memory": "1 min",
+      "longest_span_min": 1,
+      "n_features": 21,
+      "cv_rmse": 9.1713,
+      "cv_rmse_std": 0.9508,
+      "cv_mae": 6.5598
+    },
+    {
+      "memory": "1 min + 5 min",
+      "longest_span_min": 5,
+      "n_features": 29,
+      "cv_rmse": 5.1583,
+      "cv_rmse_std": 0.6662,
+      "cv_mae": 3.1482
+    },
+    {
+      "memory": "1 min + 5 min + 15 min",
+      "longest_span_min": 15,
+      "n_features": 37,
+      "cv_rmse": 4.9961,
+      "cv_rmse_std": 1.1804,
+      "cv_mae": 2.8321
+    },
+    {
+      "memory": "1 min + 5 min + 15 min + 45 min",
+      "longest_span_min": 45,
+      "n_features": 45,
+      "cv_rmse": 4.9191,
+      "cv_rmse_std": 0.7627,
+      "cv_mae": 3.1158
+    }
+  ],
+  "safety": {
+    "sigma_oof_c": 4.9587,
+    "t_hot_c": 104.791,
+    "session_plotted": 61,
+    "table": [
+      {
+        "k": 0,
+        "margin_c": 0.0,
+        "hot_rows": 14496,
+        "caught_pct": 57.202,
+        "missed_hot_minutes": 51.7,
+        "false_alarm_pct": 0.699,
+        "false_alarm_minutes": 7.375,
+        "precision_pct": 90.356
+      },
+      {
+        "k": 1,
+        "margin_c": 4.959,
+        "hot_rows": 14496,
+        "caught_pct": 66.432,
+        "missed_hot_minutes": 40.55,
+        "false_alarm_pct": 2.302,
+        "false_alarm_minutes": 24.275,
+        "precision_pct": 76.776
+      },
+      {
+        "k": 2,
+        "margin_c": 9.917,
+        "hot_rows": 14496,
+        "caught_pct": 70.04,
+        "missed_hot_minutes": 36.192,
+        "false_alarm_pct": 5.845,
+        "false_alarm_minutes": 61.625,
+        "precision_pct": 57.858
+      }
+    ]
+  },
+  "session_start": {
+    "share_rows_first_5_min": 0.025527569775357386,
+    "table": [
+      {
+        "prediction": "pred_m6",
+        "mae_first_5_min": 12.3446,
+        "signed_first_5_min": 12.0443,
+        "mae_after_5_min": 3.4664,
+        "max_abs_first_5_min": 60.3122
+      },
+      {
+        "prediction": "pred_m5",
+        "mae_first_5_min": 12.5186,
+        "signed_first_5_min": 11.8217,
+        "mae_after_5_min": 2.6073,
+        "max_abs_first_5_min": 74.8732
+      },
+      {
+        "prediction": "pred_m3",
+        "mae_first_5_min": 18.6397,
+        "signed_first_5_min": 18.6247,
+        "mae_after_5_min": 2.5835,
+        "max_abs_first_5_min": 73.5732
+      },
+      {
+        "prediction": "pred_b1",
+        "mae_first_5_min": 16.8618,
+        "signed_first_5_min": 10.7334,
+        "mae_after_5_min": 20.2334,
+        "max_abs_first_5_min": 34.3849
+      }
+    ]
+  },
+  "data_efficiency": {
+    "validation_sessions": 13,
+    "development_sessions": 50,
+    "table": [
+      {
+        "fraction": 0.25,
+        "n_sessions": 12,
+        "val_rmse": 9.5559,
+        "val_rmse_std": 1.3652
+      },
+      {
+        "fraction": 0.5,
+        "n_sessions": 25,
+        "val_rmse": 6.3631,
+        "val_rmse_std": 0.3719
+      },
+      {
+        "fraction": 0.75,
+        "n_sessions": 38,
+        "val_rmse": 5.1812,
+        "val_rmse_std": 0.2096
+      },
+      {
+        "fraction": 1.0,
+        "n_sessions": 50,
+        "val_rmse": 4.6617,
+        "val_rmse_std": NaN
+      }
+    ]
+  }
+}

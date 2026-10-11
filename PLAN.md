@@ -7,11 +7,19 @@
 - [x] Phase 0: Setup & data check (done 2026-10-07, Arnav)
 - [x] Phase 1: Problem understanding (done 2026-10-07, Arnav)
 - [x] Phase 2: Exploratory data analysis (EDA) (done 2026-10-07, run by Arnav for owner B; B to review)
+<<<<<<< Updated upstream
 - [x] Phase 3: Pre-processing & feature engineering(done 11-10-26 by Abhilasha)
 - [ ] Phase 4: Model development
 - [ ] Phase 5: Evaluation & interpretation (the test set is used here, once)
 - [ ] Phase 6: Innovation extras
 - [ ] Phase 7: Deliverables & viva prep
+=======
+- [x] Phase 3: Pre-processing & feature engineering (done 2026-10-10, run by Arnav for owner C)
+- [x] Phase 4: Model development (done 2026-10-10, run by Arnav for owner D)
+- [x] Phase 5: Evaluation & interpretation (the test set is used here, once) (done 2026-10-10; test opened 09:24:52; run by Arnav for owner E)
+- [x] Phase 6: Innovation extras (done 2026-10-11, run by Arnav for owners C, D, E)
+- [ ] Phase 7: Deliverables & viva prep (all deliverables done 2026-10-11; only the per-member mock vivas remain)
+>>>>>>> Stashed changes
 
 > Before every phase, read `CONTRIBUTING.md` (especially section 4: logging) and the last entries of `LOG.md`.
 
@@ -245,17 +253,17 @@ MST_Motor_Temperature/
 - A bar chart of each feature's correlation with the target, showing the EWMA features correlate better than the raw ones.
 
 **Leakage checklist** (copy it into `LOG.md` and tick each item)
-- [ ] No `pm`, `stator_tooth` or `stator_yoke` in the features.
-- [ ] `profile_id` is not a feature.
-- [ ] EWMA is computed per profile and causally (past only).
-- [ ] The scaler is fit only on training data (inside a Pipeline).
-- [ ] Test profiles were untouched by any tuning.
+- [x] No `pm`, `stator_tooth` or `stator_yoke` in the features.
+- [x] `profile_id` is not a feature.
+- [x] EWMA is computed per profile and causally (past only).
+- [x] The scaler is fit only on training data (inside a Pipeline).
+- [x] Test profiles were untouched by any tuning.
 
 **Acceptance criteria**
-- [ ] The leakage checklist is fully ticked.
-- [ ] The processed data and feature list are saved.
-- [ ] Figures are saved and logged.
-- [ ] Concepts added: data leakage, train/validation/test, GroupKFold, feature engineering, EWMA (with formula and span), standardisation.
+- [x] The leakage checklist is fully ticked.
+- [x] The processed data and feature list are saved.
+- [x] Figures are saved and logged.
+- [x] Concepts added: data leakage, train/validation/test, GroupKFold, feature engineering, EWMA (with formula and span), standardisation.
 
 ---
 
@@ -295,10 +303,10 @@ MST_Motor_Temperature/
 - Set the numeric success target from Phase 1 now (e.g. "test RMSE below X °C") and log it.
 
 **Acceptance criteria**
-- [ ] The CV table has at least 6 models.
-- [ ] Tuning ranges, best parameters and times are logged.
-- [ ] A `[DECISION]` entry explains the finalists.
-- [ ] Concepts added: linear regression, Ridge/Lasso (regularisation), decision tree, Random Forest (bagging), gradient boosting, cross-validation, hyperparameter tuning, overfitting vs underfitting, bias–variance in simple words.
+- [x] The CV table has at least 6 models.
+- [x] Tuning ranges, best parameters and times are logged.
+- [x] A `[DECISION]` entry explains the finalists.
+- [x] Concepts added: linear regression, Ridge/Lasso (regularisation), decision tree, Random Forest (bagging), gradient boosting, cross-validation, hyperparameter tuning, overfitting vs underfitting, bias–variance in simple words.
 
 ---
 
@@ -330,11 +338,11 @@ MST_Motor_Temperature/
   - the percentage of time the model under-predicts by more than 5 °C when the actual temperature is high (pick the threshold from the data, e.g. the top 10% of temperatures).
 
 **Acceptance criteria**
-- [ ] The test set is evaluated once, with the time logged.
-- [ ] The results CSVs are saved.
-- [ ] At least 6 figures are saved and logged.
-- [ ] The interpretation is written.
-- [ ] Concepts added: MSE, RMSE, MAE, R², residuals, permutation importance (and SHAP if used), generalisation gap.
+- [x] The test set is evaluated once, with the time logged.
+- [x] The results CSVs are saved.
+- [x] At least 6 figures are saved and logged.
+- [x] The interpretation is written.
+- [x] Concepts added: MSE, RMSE, MAE, R², residuals, permutation importance (and SHAP if used), generalisation gap.
 
 ---
 
@@ -362,8 +370,8 @@ Do **at least 3** of these (I1 and I3 are strongly recommended). Log each with n
   - Add `streamlit` to `requirements.txt` when this starts, and log it.
 
 **Acceptance criteria**
-- [ ] At least 3 innovation items are done, each with a results file, a figure and a `LOG.md` entry.
-- [ ] Each is explainable in 2 lines in `VIVA_QA.md`.
+- [x] At least 3 innovation items are done, each with a results file, a figure and a `LOG.md` entry.
+- [x] Each is explainable in 2 lines in `VIVA_QA.md`.
 
 ---
 
@@ -395,10 +403,10 @@ Do **at least 3** of these (I1 and I3 are strongly recommended). Log each with n
 6. **Final `LOG.md` entry:** a project summary plus the final numbers table, cross-checked against `outputs/results/`.
 
 **Acceptance criteria**
-- [ ] The flow diagram PNG exists.
-- [ ] The notebooks run top to bottom.
-- [ ] The slides (and report if asked) are done.
-- [ ] Every number in the slides matches the results files.
+- [x] The flow diagram PNG exists.
+- [x] The notebooks run top to bottom.
+- [x] The slides (and report if asked) are done.
+- [x] Every number in the slides matches the results files.
 - [ ] Every teammate has done a mock viva.
 
 ---

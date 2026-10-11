@@ -1,0 +1,35 @@
+{
+  "n_rows": 1330816,
+  "n_features": 45,
+  "feature_counts": {
+    "raw": 8,
+    "full": 45,
+    "no_ewma": 13,
+    "no_engineered": 24,
+    "no_torque": 39,
+    "with_leakage": 48
+  },
+  "ewma_seconds": 3.5,
+  "features_parquet_mb": 298.3,
+  "causality_max_diff": 0.0,
+  "warmup_share_train_rows": {
+    "120": 0.0064,
+    "600": 0.0318,
+    "1800": 0.0953,
+    "5400": 0.2791
+  },
+  "best_abs_r_per_group": {
+    "EWMA": 0.705,
+    "physics": 0.583,
+    "raw": 0.632
+  },
+  "top5_features_r": {
+    "i_s_ewma_600": 0.705,
+    "i_s_sq_ewma_600": 0.685,
+    "i_s_ewma_1800": 0.673,
+    "i_s_ewma_120": 0.655,
+    "i_s_sq_ewma_1800": 0.651
+  },
+  "i_s_raw_r": 0.583,
+  "i_s_best_ewma_r": 0.705
+}

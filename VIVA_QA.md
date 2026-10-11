@@ -98,7 +98,7 @@ Grouped by phase. Add questions as you go, and replace the `<our number>` placeh
 **A:** It's 300 MB, and anyone can re-download it with one script. Git is for code and small results; GitHub also blocks files over 100 MB.
 
 **Q:** Why did you drop pm, stator_tooth and stator_yoke?
-**A:** They are temperatures measured right next to the target. A real motor wouldn't have them, so using them is data leakage and makes the task trivial. With them included our R² was `<our number>`.
+**A:** They are temperatures measured right next to the target. A real motor wouldn't have them, so using them is data leakage and makes the task trivial. In our ablation (same MLP, same CV folds), adding them dropped the CV RMSE from 4.92 °C to 1.15 °C. That looks fantastic, but it's cheating.
 
 ## EDA (Phase 2)
 
@@ -153,13 +153,37 @@ Grouped by phase. Add questions as you go, and replace the `<our number>` placeh
 **A:** K-fold cross-validation where all the rows of one group (here, one session) always stay in the same fold, so the model is always tested on sessions it hasn't seen.
 
 **Q:** What is EWMA and why did you use it?
-**A:** An Exponentially Weighted Moving Average: an average of past values in which recent values count more. Temperature depends on recent load history (thermal inertia), so EWMA gives the model "memory". It improved RMSE from `<our number>` to `<our number>` °C.
+**A:** An Exponentially Weighted Moving Average: an average of past values in which recent values count more. Temperature depends on recent load history (thermal inertia), so EWMA gives the model "memory". In our ablation (same MLP, same folds), removing the EWMA features raised the CV RMSE from 4.92 °C to 13.18 °C, so the memory is worth more than 8 °C of error.
 
 **Q:** Why did you add i² as a feature?
 **A:** Copper loss = I²R is the main source of heat in the winding, so i² relates to heating more directly than i does.
 
 **Q:** Why compute the EWMA separately for each profile?
 **A:** Otherwise, at the boundary between two sessions, the average would mix data from a different session.
+
+**Q:** Which features did you engineer, and why?
+**A:** Five physics features (current and voltage magnitudes, current² for I²R copper loss, electrical and mechanical power), plus 32 EWMAs (8 signals × 1, 5, 15, 45 min) for thermal memory. That's 45 inputs in total.
+
+**Q:** How do you know your EWMA doesn't use future data?
+**A:** We computed it for session 20 on only its first 10,000 rows and compared with the full-session result. The first 10,000 values were identical (difference 0.0), so each value only uses the past.
+
+**Q:** You computed EWMA features on the test rows too. Isn't that leakage?
+**A:** No. Each row's EWMA uses only its own session's past signals, exactly what a real controller would have at that moment. Nothing is fitted or averaged across rows, so no test information reaches training.
+
+**Q:** Why spans of 1, 5, 15 and 45 minutes?
+**A:** Phase 2 found the winding follows current with a delay of a few minutes and heats and cools over tens of minutes. The spans cover that range. 120 samples at 2 Hz = 1 min.
+
+**Q:** Which feature correlates best with the winding temperature?
+**A:** The 5-minute EWMA of current magnitude (r = 0.705). The raw current only reaches 0.583, and the top 5 features are all EWMAs of current.
+
+**Q:** Why is there a 1.5 in your electrical power formula?
+**A:** The dq values use the amplitude-invariant Park transform. With that convention, three-phase power is 1.5 × (u_d·i_d + u_q·i_q).
+
+**Q:** What is the warm-up problem?
+**A:** At the start of a session the EWMA has no history yet, so a 45-min average isn't meaningful for the first 45 min. That's 27.9 % of training rows, and we expect larger errors there.
+
+**Q:** Did you clean or remove anything?
+**A:** No. We re-checked in code: 0 missing values, 0 duplicates, sessions unbroken. Removing rows would also break the regular 0.5 s spacing the EWMA relies on.
 
 ## Models
 
@@ -168,6 +192,36 @@ Grouped by phase. Add questions as you go, and replace the `<our number>` placeh
 
 **Q:** Why don't tree models need feature scaling?
 **A:** They split on thresholds of one feature at a time. Scaling doesn't change the order of the values, so the splits stay the same.
+
+**Q:** What are your baselines and why do you need them?
+**A:** B0 always predicts the training mean; B1 predicts coolant + a constant offset. Any real model must clearly beat them, otherwise it hasn't learned anything useful. Our success target is defined relative to B1.
+
+**Q:** How did you compare models fairly?
+**A:** Every model was evaluated with the same GroupKFold(5) folds (grouped by session) on the same rows (every 10th training row). The main metric was RMSE in °C, as mean ± std over the 5 folds.
+
+**Q:** Why GroupKFold and not normal K-fold?
+**A:** Normal K-fold splits rows randomly, so neighbouring 0.5 s rows (near-copies) land in both training and validation, and the score looks far too good. GroupKFold keeps whole sessions together, so every validation score is on unseen sessions.
+
+**Q:** Why did you use only every 10th row for cross-validation?
+**A:** Neighbouring rows are near-duplicates, so one row per 5 s keeps almost all the information while making slow models (Random Forest) about 10× faster. The EWMA features were computed before thinning, so they still carry the full 2 Hz history. We also measured the cost of thinning in the notebook.
+
+**Q:** What is the difference between Ridge and Lasso?
+**A:** Both add a penalty on large weights. Ridge (L2) shrinks all weights; Lasso (L1) can set weights exactly to 0, removing features. Our best Lasso (α = 0.01) dropped 11 of 45 features.
+
+**Q:** Your Random Forest had a much lower training error than validation error. What does that mean?
+**A:** Overfitting. Training RMSE was 1.78–3.01 °C, but validation RMSE on unseen sessions was 5.82–5.92 °C. Trees also cannot extrapolate beyond the training targets, which hurts on sessions unlike the training ones.
+
+**Q:** What is the difference between Random Forest and gradient boosting?
+**A:** Random Forest builds many independent trees on random samples and averages them (bagging). Boosting builds trees one after another, each correcting the previous trees' errors, scaled by a learning rate.
+
+**Q:** Why did you turn off early stopping?
+**A:** LightGBM and sklearn's MLP pick their early-stopping validation rows at random. That mixes rows from the same session and gives over-optimistic scores. We used a fixed number of trees or epochs, judged only by session-wise CV.
+
+**Q:** What are hyperparameters? How did you tune them?
+**A:** Settings chosen before training (α, depth, trees, learning rate). We tried a small set per model (6 Ridge α, 3 Lasso α, 4 Random Forest and 8 LightGBM random configurations, seed 42) and kept the best mean CV RMSE. The test set was never used for this.
+
+**Q:** Why are errors larger at the start of some sessions?
+**A:** 16 of our 63 training sessions start already warm (session 46 starts at 99.3 °C). At a session's first row the EWMA "memory" has no history, so the model can't know the motor was heated before the recording began. A real controller would run its EWMAs continuously from power-on.
 
 ## Evaluation
 
@@ -180,10 +234,72 @@ Grouped by phase. Add questions as you go, and replace the `<our number>` placeh
 **Q:** Why is under-prediction worse than over-prediction here?
 **A:** If the model says "cool" while the motor is actually overheating, no protective action is taken and the insulation gets damaged.
 
+**Q:** What are your final test results?
+**A:** On the 6 unseen test sessions (141,024 rows), the final MLP got RMSE 6.00 °C, MAE 3.69 °C and R² 0.946, meeting both targets set beforehand (≤ 6.5 °C and ≤ 13.02 °C). The other finalists got Ridge 4.97 °C and LightGBM 5.11 °C; the coolant baseline got 24.48 °C.
+
+**Q:** When was the test set used?
+**A:** Once, at 2026-10-10 09:24:52, after the models, settings and success targets were all frozen. Nothing was changed afterwards.
+
+**Q:** Your best CV model did worst of the finalists on the test set. Why? Did you switch?
+**A:** The top models were within 0.3 °C in CV, less than the fold-to-fold noise (0.58–0.84 °C), so CV couldn't really rank them, and one hard test session (6) hurt the MLP most. We did not switch: choosing a model after seeing test scores turns the test set into training data. Next time we'd pre-register a "simplest within one std" rule, which would have picked Ridge.
+
+**Q:** What does an MAE of 3.69 °C mean?
+**A:** On average the estimate is 3.69 °C away from the real winding temperature. 54.5 % of predictions are within ±2 °C and 75.6 % within ±5 °C, but rare large errors exist (max 60.31 °C).
+
+**Q:** Where does your model fail?
+**A:** In the first minutes of a session: a cold motor that starts under heavy load looks hot to the memory features (up to +60.31 °C error, session 21). And when hot (above 90 °C), where the MLP under-predicts by about 6 °C on average; session 6, with high coolant under load, was worst (RMSE 9.43 °C).
+
+**Q:** Why does the session start cause errors?
+**A:** pandas' EWMA starts each session at the current value, so the 15 and 45-minute memories behave as if the load had been running that long. A real controller would run its EWMAs continuously from power-on, so this is mostly an artefact of how the recordings were cut.
+
+**Q:** How often does the model dangerously under-predict?
+**A:** Of hot moments (≥ 104.79 °C, 10.3 % of test rows), the MLP under-predicts by more than 5 °C in 52.0 % of them (LightGBM 27.0 %). Its largest under-prediction was −22.03 °C. That's why we add a safety margin in Phase 6.
+
+**Q:** Which inputs matter most? Is that physically sensible?
+**A:** Grouped permutation importance: coolant (19.67 °C RMSE increase) > voltage (16.11) > speed (15.40) > current (11.32) > power > torque (2.45) > ambient (0.52). Coolant sets the base temperature, current² is the copper loss, and speed/voltage reflect iron losses and the operating point. Torque adds little because it's nearly a copy of i_q.
+
+**Q:** Why did you report both row-weighted MAE and session-mean MAE?
+**A:** Test sessions range from 2.0 to 5.6 h, so row-weighted scores are dominated by long sessions. Session-mean MAE weighs every session equally: LightGBM is best by that measure (2.38 °C), Ridge by RMSE (4.97 °C).
+
+**Q:** Is R² = 0.946 good?
+**A:** It means 94.6 % of the temperature's variation is explained. But R² can look high even when errors in °C matter, so we always quote RMSE and MAE in °C as well, plus the worst-case and under-prediction numbers.
+
 ## Team & process
 
 **Q:** How did you divide the work, and what was your own contribution?
 **A:** By pipeline stage. Arnav did setup, the data check and the problem definition; B did EDA; C did pre-processing and features; D did the models; E did evaluation and the safety alarm. The next stage's owner reviewed each stage, and everyone read the full log, so anyone can answer for any stage. (Each member: say your own stage first, with one real number from it.)
 
 ## Innovation
-<!-- ablation study, safety margin & alert, data-efficiency curve, demo app -->
+
+**Q:** What is an ablation study, and what did yours show?
+**A:** We removed one idea at a time with the same MLP, rows and folds. CV RMSE was 4.92 °C with everything; 13.18 °C without the EWMA memory; 6.56 °C without the physics features; 4.81 °C without torque; and 13.41 °C with raw signals only. So the memory features are worth more than 8 °C.
+
+**Q:** How do you prove the forbidden temperatures are cheating?
+**A:** In the ablation, adding pm, stator_tooth and stator_yoke drops the CV RMSE from 4.92 °C to 1.15 °C. That's almost perfect, because the model just copies the neighbouring sensors, which a real motor without a winding sensor wouldn't have.
+
+**Q:** Removing torque made the model slightly better. How?
+**A:** 4.81 vs 4.92 °C, which is within the fold noise (± 1.03). Torque is almost a copy of i_q (r = 0.9965), so it adds no new information. That's good news, because in real vehicles torque is usually estimated rather than measured.
+
+**Q:** How long a memory does the model need?
+**A:** About 5 minutes gives most of the gain: CV RMSE falls from 13.18 °C (no memory) to 9.17 (1 min) and 5.16 °C (1 + 5 min). The 15 and 45-min spans add only 0.24 °C more, which matches the 2.5-minute lag we found in EDA.
+
+**Q:** How does your safety alarm work?
+**A:** It raises an alarm when the estimate + k·σ ≥ 104.79 °C, where σ = 4.96 °C is the model's typical error measured on training sessions (out-of-fold), never on the test. With k = 2 it catches 70.0 % of hot moments (57.2 % with no margin) at 5.84 % false alarms (0.70 % with no margin).
+
+**Q:** Why not just make the margin huge?
+**A:** False alarms grow fast: precision falls from 90.4 % (k = 0) to 57.9 % (k = 2). An alarm that cries wolf gets ignored or derates the motor needlessly. It's a trade-off engineers must choose, and even k = 2 still misses 30 % of hot moments.
+
+**Q:** Why take σ from out-of-fold errors and not from training errors?
+**A:** Errors on rows the model trained on are far too small (e.g. LightGBM's training RMSE is 1.14 vs 5.06 °C in validation). Out-of-fold errors come from sessions the model hadn't seen, so they reflect real use, and they don't touch the test set.
+
+**Q:** Would more data help?
+**A:** Yes. Training on 12 → 25 → 38 → 50 sessions gave validation RMSE 9.56 → 6.36 → 5.18 → 4.66 °C, still falling. Recording more varied sessions is the cheapest improvement.
+
+**Q:** How big is the session-start problem?
+**A:** The first 5 minutes of each test session are only 2.55 % of rows, but the MLP's error there is 12.34 °C vs 3.47 °C afterwards (mostly over-prediction, +12.04 °C). A real controller would keep its EWMA running from power-on, or initialise it from a known idle state.
+
+**Q:** Is your demo real-time?
+**A:** It's a recorded-data replay. The Streamlit app feeds a held-out test session through the saved model minute by minute, showing the estimate, the real sensor value for comparison, and an alarm lamp. No physical motor is connected.
+
+**Q:** Walk us through your flow diagram.
+**A:** Data check → freeze 6 test sessions → EDA on 63 training sessions (8 plots) → no cleaning needed → physics + EWMA features → scaling inside a Pipeline → 9 models with session-wise CV → finalists → one test evaluation → interpretation → innovation.

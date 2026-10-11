@@ -68,7 +68,41 @@ Add a concept the first time it is used. Improve an entry when our understanding
 - **Common confusion / trap:** thermal inertia also makes neighbouring rows nearly identical, so the rows are **not independent**. A random train/test split would leak near-copies into the test set (N2).
 
 ## Data & pre-processing
-<!-- still to add: GroupKFold, feature engineering, EWMA, standardisation -->
+
+### Feature engineering
+- **In one line:** creating new input columns from the raw ones, so the model gets information in a form it can use more easily.
+- **Explained simply:** The raw data says `i_d = −120 A, i_q = 80 A`. Heat in copper depends on the *total* current squared (I²R), so we hand the model `i_s² = i_d² + i_q²` directly instead of hoping it discovers this formula. It's like giving a student the formula sheet: same knowledge, much easier to use. Our 5 physics features are `i_s`, `u_s`, `i_s²`, `p_el` and `p_mech`; our 32 memory features are EWMAs.
+- **Formula (if any):** i_s = √(i_d²+i_q²); u_s = √(u_d²+u_q²); p_el = 1.5(u_d·i_d + u_q·i_q); p_mech = T·n·2π/60.
+- **Why we used it here:** no raw signal alone explains the winding (best |r| 0.632), and physics tells us which combinations make heat.
+- **Where in our code:** `src/features.py` → `add_physics_features()`, `add_ewma_features()`; `notebooks/03_preprocessing_features.ipynb`.
+- **Common confusion / trap:** engineered features must be computed **the same way** in training and in use (the demo app). That's why they live in one shared file, not copied into each notebook.
+
+### EWMA (exponentially weighted moving average)
+- **In one line:** an average of a signal's past in which recent values count most and older values fade away smoothly.
+- **Explained simply:** Think of "how tired am I?". It depends mostly on the last hour, a bit on this morning, and hardly at all on last week. An EWMA keeps a running memory like that. A short span (1 min) reacts fast; a long span (45 min) remembers the slow build-up of heat. The winding temperature depends on how hard the motor worked over the last minutes (thermal inertia), so EWMAs give the model that memory.
+- **Formula (if any):** μ_t = (1 − α)·μ_{t−1} + α·x_t with α = 2/(span + 1). Our spans 120 / 600 / 1800 / 5400 samples ÷ 120 samples per minute = 1 / 5 / 15 / 45 min. The last *span* samples carry about 86.5 % of the total weight.
+- **Why we used it here:** Phase 2 showed the winding follows current² with a median delay of 2.5 min. The 5-min EWMA of current has r = 0.705 with the winding, against 0.583 for the raw current.
+- **Where in our code:** `src/features.py → add_ewma_features()`, using `df.groupby("profile_id")[col].transform(lambda s: s.ewm(span=sp).mean())`.
+- **Common confusion / trap:**
+  - Compute it **per session** (or sessions get mixed), **in time order**, and **before** any thinning or shuffling.
+  - It must be **causal** (past only). We proved it by recomputing on a cut session (difference 0.0).
+  - At a session's start there is no history yet (warm-up): 27.9 % of training rows are in the first 45 min.
+
+### Standardisation (StandardScaler)
+- **In one line:** rescale each feature to mean 0 and standard deviation 1.
+- **Explained simply:** Our features have very different sizes: `i_s²` reaches 130,693 A², while `ambient` stays around 25 °C. Ridge's penalty treats every coefficient alike, so without scaling it would be unfair to features with small numbers. Neural nets also train badly on unscaled inputs. Trees don't care, because a split "x > 5" works the same as "x/10 > 0.5".
+- **Formula (if any):** z = (x − mean) / std, where the mean and std come from the **training** rows only.
+- **Why we used it here:** for Linear/Ridge/Lasso/MLP in Phase 4, always inside a `Pipeline([("scale", StandardScaler()), ("model", …)])`.
+- **Where in our code:** `notebooks/04_modelling.ipynb`.
+- **Common confusion / trap:** fitting the scaler on *all* data before cross-validation leaks the validation folds' mean and std into training. Inside a Pipeline, it is re-fitted on each training fold only.
+
+### Train / validation / test, and cross-validation (GroupKFold)
+- **In one line:** training data fits the model, validation data chooses between models and settings, and test data gives the final, untouched score.
+- **Explained simply:** Like practice papers (train), mock exams (validation) and the real exam (test). We don't keep one fixed validation set. We use **5-fold cross-validation** on the 63 training sessions: deal the sessions into 5 groups, train on 4 and validate on the 5th, repeat 5 times and average. **GroupKFold** makes sure all rows of a session stay in the same fold, so every validation score is on *unseen sessions*. The 6 test sessions are used only once, in Phase 5.
+- **Formula (if any):** CV score = mean (± std) of the 5 fold scores.
+- **Why we used it here:** about 60 training sessions is too few for one reliable fixed validation split. 5 folds use every session for validation once, and give a spread (std).
+- **Where in our code:** `src/modelling.py → group_cv()` (GroupKFold(5), groups = profile_id); `notebooks/04_modelling.ipynb`.
+- **Common confusion / trap:** a normal KFold on rows would put neighbouring 0.5 s rows on both sides and give far too optimistic scores. Always group by session.
 
 ### Data leakage
 - **In one line:** the model gets information during training that it would not have in real use, so its score looks better than it really is.
@@ -184,7 +218,83 @@ Add a concept the first time it is used. Improve an entry when our understanding
   - In Jupyter or VS Code, pick the `.venv` kernel, or the notebook can't find our libraries.
 
 ## Models
-<!-- still to add: linear regression, Ridge/Lasso, decision tree, Random Forest, gradient boosting (LightGBM), MLP, hyperparameter tuning, overfitting -->
+
+### Baseline model
+- **In one line:** a deliberately simple model that every real model must beat.
+- **Explained simply:** Before celebrating an error of "5 °C", ask: what does a model that doesn't even look at the inputs get? Ours are:
+  - **B0**, always predict the training mean;
+  - **B1**, winding = coolant + a fixed offset ("just read the coolant thermometer").
+  If a fancy model can't clearly beat these, it has learned nothing useful.
+- **Formula (if any):** B0: ŷ = mean(y_train). B1: ŷ = coolant + mean(y_train − coolant_train).
+- **Why we used it here:** plan Phase 4. The success target is defined relative to B1.
+- **Where in our code:** `src/modelling.py → CoolantPlusOffset`; `notebooks/04_modelling.ipynb` section 4.
+- **Common confusion / trap:** a baseline is not a "bad model to throw away". It's the yardstick that gives every other number its meaning.
+
+### Linear regression
+- **In one line:** predicts the target as a weighted sum of the inputs plus a constant: ŷ = w₁x₁ + w₂x₂ + … + b.
+- **Explained simply:** It finds the weights that make the squared errors on the training rows as small as possible ("least squares"). It's fast, easy to explain (each weight says how much that input pushes the temperature) and hard to overfit with few features. But it can only draw straight-line (flat) relationships. Our features (I², EWMAs) do the non-linear work *before* the model sees them, which is why a linear model can work well here.
+- **Formula (if any):** minimise Σ(yᵢ − ŷᵢ)².
+- **Why we used it here:** M1 (8 raw inputs) vs M2 (45 features) shows how much the feature engineering adds.
+- **Where in our code:** `notebooks/04_modelling.ipynb` section 5.
+- **Common confusion / trap:** "linear" means linear in the *weights*, not in the physics. Using I² as an input lets a linear model capture a squared effect.
+
+### Regularisation (Ridge and Lasso)
+- **In one line:** a penalty that stops a model from relying on huge weights, so it generalises better.
+- **Explained simply:** Our 45 features are strongly related (e.g. the 1, 5, 15 and 45-min EWMAs of current). Plain linear regression can then give one feature +500 and its twin −499, which fits training rows but is fragile. **Ridge** adds α·Σw² to the error, shrinking all weights. **Lasso** adds α·Σ|w|, which can push weights to exactly 0, i.e. it removes features. α sets the strength: too small = overfitting, too big = too simple (underfitting).
+- **Formula (if any):** Ridge: minimise Σ(y−ŷ)² + α·Σw². Lasso: minimise (1/2n)·Σ(y−ŷ)² + α·Σ|w|.
+- **Why we used it here:** the M3 models. In our CV, Lasso with α = 0.01 reached RMSE 5.20 °C and set 11 of 45 weights to 0. At α = 1.0 it dropped 34 features and got worse (6.57 °C), which is underfitting.
+- **Where in our code:** `notebooks/04_modelling.ipynb` section 6 → `tuning_ridge.csv`, `tuning_lasso.csv`, `model_02_regularisation.png`.
+- **Common confusion / trap:** the features must be **standardised** first, or the penalty unfairly punishes features measured in small units.
+
+### Decision tree and Random Forest (bagging)
+- **In one line:** a tree splits the data with yes/no questions; a Random Forest averages many trees, each trained on a random sample.
+- **Explained simply:** A decision tree is like a game of 20 questions: "is i_s_ewma_600 > 150 A? is coolant > 40 °C?". Each final "leaf" predicts the average temperature of the training rows that landed there. One deep tree memorises the training data (overfits). A **Random Forest** grows many trees, each on a random half of the rows (`max_samples=0.5`) and considering random subsets of features at each split, then averages them. That's **bagging**: individual mistakes cancel out.
+- **Formula (if any):** prediction = mean of the trees' predictions.
+- **Why we used it here:** M4, to capture non-linear interactions. In our CV it overfitted clearly: training RMSE 1.78–3.01 °C against validation 5.82–5.92 °C across the 4 configurations.
+- **Where in our code:** `notebooks/04_modelling.ipynb` section 7 → `tuning_rf.csv`.
+- **Common confusion / trap:** **trees cannot extrapolate.** A tree can only predict values between the training leaves' averages. A session with a coolant level or load pattern unlike the training sessions is hard for trees, while a linear model can extend its trend.
+
+### Gradient boosting (LightGBM)
+- **In one line:** builds trees one after another, each new tree correcting the errors left by the previous ones.
+- **Explained simply:** The first small tree makes a rough guess. The second tree is trained on the *errors* of the first, the third on what's still wrong, and so on, each contribution scaled down by the **learning rate**. Hundreds of small corrections add up to a strong model. LightGBM is a fast library that grows trees leaf by leaf (`num_leaves`).
+- **Formula (if any):** ŷ = tree₁(x) + η·tree₂(x) + η·tree₃(x) + …, with η = learning rate.
+- **Why we used it here:** M5, usually the strongest model for tabular data.
+- **Where in our code:** `notebooks/04_modelling.ipynb` section 8 → `tuning_lgbm.csv`.
+- **Common confusion / trap:** **early stopping on randomly chosen validation rows leaks** neighbouring rows of the same session. We switched early stopping off and judged every setting with session-wise folds.
+
+### Neural network (MLP)
+- **In one line:** layers of simple units ("neurons"), each computing a weighted sum followed by a non-linear function, trained by gradient descent.
+- **Explained simply:** Inputs go into a layer of 64 neurons, then a layer of 32, then one output. Each neuron computes max(0, w·x + b) (ReLU). Training repeatedly nudges all the weights to reduce the error (the Adam optimiser, 40 passes over the data). It can learn complex shapes, but needs scaled inputs and tuning.
+- **Formula (if any):** h = ReLU(W·x + b), layer after layer; output = w·h + b.
+- **Why we used it here:** M6, an optional comparison (one fixed configuration).
+- **Where in our code:** `notebooks/04_modelling.ipynb` section 9.
+- **Common confusion / trap:** sklearn's `early_stopping=True` picks a *random* validation split, which leaks for time series, so we turned it off.
+
+### Hyperparameters and tuning
+- **In one line:** settings chosen *before* training (α, tree depth, number of trees, learning rate). They aren't learned from the data directly; we pick them by validation.
+- **Explained simply:** **Parameters** (weights, tree splits) are learned by `fit()`. **Hyperparameters** are the knobs that control how learning happens. We tried a few settings per model and kept the one with the best **cross-validated** RMSE, never the test RMSE:
+  - Ridge: 6 α values; Lasso: 3 α values;
+  - Random Forest: 4 random configurations; LightGBM: 8 random configurations (`ParameterSampler`, seed 42).
+- **Formula (if any):** best setting = argmin over settings of the mean CV RMSE.
+- **Why we used it here:** plan Phase 4. A small budget, because the laptop has limited time and memory.
+- **Where in our code:** `notebooks/04_modelling.ipynb` sections 6–8 → `outputs/results/tuning_*.csv`.
+- **Common confusion / trap:** tuning on the test set ("try settings until the test score looks good") turns the test set into training data. Our test set is opened once, in Phase 5.
+
+### Overfitting, underfitting and the bias–variance trade-off
+- **In one line:** overfitting = memorising the training data (great training score, poor on new data); underfitting = too simple to capture the pattern (poor on both).
+- **Explained simply:** A student who memorises past papers word for word (overfitting, *high variance*) fails new questions. One who only learned "the answer is usually C" (underfitting, *high bias*) fails everything. We spot it by comparing **training RMSE** with **validation RMSE**: a big gap means overfitting. Our Random Forests had training RMSE 1.78–3.01 °C but validation 5.82–5.92 °C, a clear overfit. Regularisation (α, `min_samples_leaf`, fewer leaves) moves a model towards less variance.
+- **Formula (if any):** expected error ≈ bias² + variance + noise.
+- **Why we used it here:** to read the CV table and choose settings (`model_01_cv_comparison.png` shows training RMSE as dots).
+- **Where in our code:** `src/modelling.py → group_cv()` records `train_rmse` for every fold.
+- **Common confusion / trap:** a low *training* error is not success. Only errors on unseen sessions count.
+
+### Out-of-fold (OOF) predictions
+- **In one line:** the prediction each training row receives from the cross-validation model that did **not** train on it.
+- **Explained simply:** In 5-fold CV every session is held out exactly once. Collecting the predictions made for the held-out sessions gives one "honest" prediction per training row, as if each session were new. Their errors show how big our mistakes typically are on unseen sessions, *without* touching the test set.
+- **Formula (if any):** residual = ŷ_OOF − y; we use its standard deviation σ as a safety margin (Phase 6, I3).
+- **Why we used it here:** to set the safety-alarm margin from training data only.
+- **Where in our code:** `notebooks/04_modelling.ipynb` section 14 → `modelling_summary.json["oof_best"]`.
+- **Common confusion / trap:** errors of a model on its *own* training rows are far too small to use as a margin (see overfitting above).
 
 ### Supervised learning
 - **In one line:** learning from examples where the correct answer is already known.
@@ -203,4 +313,85 @@ Add a concept the first time it is used. Improve an entry when our understanding
 - **Common confusion / trap:** "Logistic regression" is actually a *classification* method, despite its name. We don't use it.
 
 ## Evaluation & interpretation
-<!-- MSE, RMSE, MAE, R², residuals, permutation importance, SHAP, generalisation gap, ablation study -->
+
+### Error metrics: MSE, RMSE, MAE, R², max, p95 and signed error
+- **In one line:** different ways to summarise "how wrong" the predictions are, each answering a slightly different question.
+- **Explained simply:** With error = predicted − actual:
+  - **MSE**: the average of squared errors, in °C², hard to read directly.
+  - **RMSE** = √MSE, in °C. Squaring makes big errors count a lot, so RMSE punishes rare big misses.
+  - **MAE**: the average size of the error, in °C. "Typically we're off by this much."
+  - **R²**: the share of the temperature's variation the model explains (1 = perfect, 0 = no better than the mean, below 0 = worse).
+  - **Max |error|**: the single worst miss.
+  - **p95 |error|**: 95 % of errors are smaller than this.
+  - **Mean signed error**: negative means we under-predict on average, the dangerous direction here.
+  Our final MLP on the test set: RMSE 6.005 °C, MAE 3.693 °C, R² 0.946, p95 14.60 °C, max 60.31 °C, mean signed −1.95 °C.
+- **Formula (if any):** RMSE = √(mean(e²)); MAE = mean(|e|); R² = 1 − Σe² / Σ(y − ȳ)².
+- **Why we used it here:** RMSE is the plan's selection metric. The others show typical errors (MAE), worst cases (max, p95) and safety (signed error).
+- **Where in our code:** `src/modelling.py → regression_metrics()`.
+- **Common confusion / trap:**
+  - R² looks impressive (0.946) even when the error in °C is meaningful. Always quote RMSE/MAE in °C too.
+  - RMSE ≥ MAE always; a big gap between them means a few large errors.
+
+### Residuals
+- **In one line:** the error of each single prediction, predicted − actual.
+- **Explained simply:** Looking at all residuals together tells you more than one average: are they centred on 0 (no bias)? Are big ones rare? Do they grow at high temperatures? Our MLP's residuals are centred slightly below 0 (−1.95 °C) and grow above 90 °C (MAE 7.5–7.8 °C, mean −6.2 to −6.6 °C), so it under-predicts when hot.
+- **Formula (if any):** rᵢ = ŷᵢ − yᵢ.
+- **Why we used it here:** `eval_07_residual_histogram.png`, `eval_09_error_by_temperature.png`, and the error panels under each session plot.
+- **Where in our code:** `notebooks/05_evaluation.ipynb` sections 5–9.
+- **Common confusion / trap:** some books define the residual as actual − predicted (the opposite sign). We always use predicted − actual, so **negative = under-prediction**.
+
+### Generalisation gap
+- **In one line:** the difference between the score a model got during development (CV) and its score on truly new data (test).
+- **Explained simply:** If a student scores 90 % on mock exams but 75 % in the real exam, the gap shows how much the mocks over-promised. Our gaps are: MLP +1.086 °C (4.919 → 6.005), LightGBM +0.044, Ridge −0.205. A model whose CV advantage was smaller than the fold noise can easily lose on a small test set of 6 sessions.
+- **Formula (if any):** gap = test RMSE − CV RMSE.
+- **Why we used it here:** plan Phase 5 interpretation; `eval_12_cv_vs_test.png`.
+- **Where in our code:** `notebooks/05_evaluation.ipynb` section 11.
+- **Common confusion / trap:** a negative gap (test better than CV) is possible and not suspicious when the test set is small. It just means those 6 sessions happened to be a bit easier for that model.
+
+### Permutation importance (single and grouped)
+- **In one line:** how much the error grows when you randomly shuffle one input column, breaking its link to the target.
+- **Explained simply:** If the model really relies on coolant temperature, scrambling the coolant column should make its predictions much worse. If shuffling an input changes nothing, the model wasn't using it. Our features come in correlated families (e.g. current and its 4 EWMAs). Shuffling one member hurts little because its siblings still carry the information, so we also shuffle **whole families at once**. Grouped result for our MLP (RMSE increase in °C): coolant 19.67, voltage 16.11, speed 15.40, current 11.32, power 8.96, torque 2.45, ambient 0.52.
+- **Formula (if any):** importance = RMSE(shuffled) − RMSE(original), averaged over 3 shuffles.
+- **Why we used it here:** the physics sanity check (plan N7). The ranking makes physical sense.
+- **Where in our code:** `notebooks/05_evaluation.ipynb` section 10 → `permutation_importance*.csv`, `eval_11_permutation_importance.png`.
+- **Common confusion / trap:**
+  - Importance is **not** causation.
+  - Shuffling can create impossible input combinations, so the exact values are rough.
+  - We computed it after the one test evaluation, as interpretation only; nothing was changed because of it.
+
+### One-standard-error rule (a lesson from our project)
+- **In one line:** among models whose CV score is within one standard deviation of the best, choose the simplest.
+- **Explained simply:** If two models' CV scores differ by less than the natural noise between folds, the data can't really tell them apart, so prefer the simpler, cheaper, more explainable one. Our top five models were within 0.3 °C, while their fold std was 0.58–0.84 °C. This rule would have chosen **Ridge**, which then did best on the test set (4.966 °C). We had not decided on it in advance, so we did not switch after seeing the test results.
+- **Formula (if any):** choose the simplest model with CV RMSE ≤ best CV RMSE + its std.
+- **Why we used it here:** a lesson learned, and the recommended rule for future work.
+- **Where in our code:** `LOG.md` Phases 4.3 and 5.1.
+- **Common confusion / trap:** applying such a rule *after* seeing test results is cheating. It must be fixed before the test set is opened.
+
+## Innovation
+
+### Ablation study
+- **In one line:** remove one ingredient at a time, keeping everything else the same, and measure how much worse the model gets.
+- **Explained simply:** It's like testing a recipe by baking it again without the sugar, then without the eggs. If the cake gets much worse without an ingredient, that ingredient matters. We kept the **same model (the final MLP), the same rows and the same 5 session-folds**, and only changed the inputs. Removing the EWMA memory raised the CV RMSE from 4.92 to 13.18 °C. Removing the physics features raised it to 6.56 °C. Removing torque changed almost nothing (4.81 °C). Adding the forbidden temperatures dropped it to 1.15 °C, which proves they are a cheat.
+- **Formula (if any):** effect of an idea = CV RMSE without it − CV RMSE of the full model.
+- **Why we used it here:** innovation I1. It turns "we think EWMA helps" into a measured number.
+- **Where in our code:** `notebooks/06_innovation.ipynb` section 2 → `outputs/results/ablation.csv`, `innov_01_ablation.png`.
+- **Common confusion / trap:** an ablation must change only ONE thing. If the folds, rows or settings also changed, you couldn't tell what caused the difference.
+
+### Safety margin and alarm (recall, false alarms, precision)
+- **In one line:** raise an overheating alarm when the estimate **plus a safety margin** passes a threshold, so fewer real overheating moments are missed.
+- **Explained simply:** Our model sometimes reads too low when the motor is hot. If the protection only trusts the raw estimate, it can miss real overheating. Adding k × σ (σ = the typical error, measured on the training sessions) to the estimate before comparing with the threshold catches more hot moments, at the price of more false alarms. We report three numbers:
+  - **caught (recall):** of the truly hot moments, how many raised the alarm;
+  - **false-alarm rate:** of the not-hot moments, how many raised it anyway;
+  - **precision:** of all alarms, how many were real.
+- **Formula (if any):** alarm if ŷ + k·σ ≥ T_hot; recall = TP/(TP+FN); false-alarm rate = FP/(FP+TN); precision = TP/(TP+FP).
+- **Why we used it here:** innovation I3, plan nuance N8: under-prediction is the dangerous direction.
+- **Where in our code:** `notebooks/06_innovation.ipynb` section 4 → `safety_alarm.csv`, `innov_03_safety_alarm.png`; the margin slider in `app.py`.
+- **Common confusion / trap:** σ must come from data the model didn't train on. We used out-of-fold errors from cross-validation, never the test set and never training-fit errors (those are far too small).
+
+### Data-efficiency (learning) curve
+- **In one line:** how the error changes when the model is trained on less and less data.
+- **Explained simply:** We trained the final model on 25 %, 50 %, 75 % and 100 % of the development sessions and scored it on a fixed set of validation sessions. If the error is still falling at 100 %, more test-bench sessions would help; if it is flat, more data of the same kind won't. Ours: 9.56 °C (12 sessions), 6.36 °C (25), 5.18 °C (38), 4.66 °C (50). It is still falling, so **more sessions would still help**.
+- **Formula (if any):** —
+- **Why we used it here:** innovation I4. It tells GE how much data a new motor would need.
+- **Where in our code:** `notebooks/06_innovation.ipynb` section 6 → `data_efficiency.csv`, `innov_04_data_efficiency.png`.
+- **Common confusion / trap:** with few sessions the result depends a lot on *which* sessions were picked. That's why the smaller fractions are repeated 3 times with different random picks and averaged.

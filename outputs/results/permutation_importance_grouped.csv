@@ -1,0 +1,8 @@
+family,n_features,rmse_increase,std
+coolant (+ EWMAs),5,19.6703,0.0942
+"voltage (u_d, u_q, u_s, EWMAs)",7,16.1102,0.0537
+speed (+ EWMAs),5,15.3975,0.047
+"current (i_d, i_q, i_s, i_s², EWMAs)",12,11.3196,0.1
+"power (p_el, p_mech, EWMAs)",6,8.9585,0.0399
+torque (+ EWMAs),5,2.4446,0.0339
+ambient (+ EWMAs),5,0.5186,0.0111

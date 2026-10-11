@@ -7,10 +7,15 @@ We estimate the **stator winding temperature (°C)** of an electric motor from s
 | 0 | Setup & data check (`notebooks/01_data_check.ipynb`) | ✅ |
 | 1 | Problem understanding (`docs/problem.md`) | ✅ |
 | 2 | EDA, test sessions frozen first (`notebooks/02_eda.ipynb`) | ✅ |
-| 3 | Pre-processing & features (physics + EWMA "thermal memory") | next |
-| 4–7 | Models → test evaluation → innovation/demo → slides & viva | to do |
+| 3 | Pre-processing & features: 45 inputs, physics + EWMA "thermal memory" (`notebooks/03_preprocessing_features.ipynb`) | ✅ |
+| 4 | 9 models, session-wise 5-fold CV; finalists MLP, LightGBM, Ridge (`notebooks/04_modelling.ipynb`) | ✅ |
+| 5 | Test set used **once** (2026-10-10 09:24:52): MLP RMSE 6.00 °C, Ridge 4.97, LightGBM 5.11; targets met (`notebooks/05_evaluation.ipynb`) | ✅ |
+| 6 | Innovation: ablation, memory curve, safety alarm, data efficiency (`notebooks/06_innovation.ipynb`) + demo `app.py` | ✅ |
+| 7 | Flow diagram, report (`docs/report/report.md`), 12 slides, `MST_final.ipynb`: done. **Mock viva for every member still to do** | almost |
 
-**Live team tracker** and **EDA showcase:** published online; ask Arnav for the links (or open `docs/showcase/index.html` locally)
+**Headline result:** a virtual sensor that estimates the winding temperature of unseen sessions with RMSE about 5–6 °C, against 24.5 °C for "coolant + offset". The EWMA thermal-memory features are worth more than 8 °C (ablation: 4.92 → 13.18 °C without them).
+
+The **interactive showcase (present this)**, the **slides**, the **live team tracker** and the **EDA showcase** are published online; ask Arnav for the links. Offline: `showcase/motor_showcase.html` (after building it) and `docs/showcase/index.html`.
 
 ## Start here (new teammate)
 Read these in order. Viva questions can go to **anyone**, so read all of them:
@@ -33,6 +38,13 @@ Read these in order. Viva questions can go to **anyone**, so read all of them:
    The first install took about 19 min on one laptop.
 3. Get the data (300 MB, not in git): `python src\download_data.py`. The source and checksum are in `data/README.md`.
 4. Run `notebooks/01_data_check.ipynb` once. It creates `data/processed/measures_v2.parquet`, which the other notebooks use.
+5. For the live demo and `MST_final.ipynb`, also run notebooks 03 and 04 (about 25 min). They create the features and the saved models, which are git-ignored.
+
+## The demo
+```
+streamlit run app.py
+```
+It replays one of the 6 test sessions: the estimated vs real winding temperature, a safety margin and an overheating alarm lamp. Without the saved models it falls back to the predictions saved in Phase 5, so it always works.
 
 ## Every work session
 ```
@@ -47,7 +59,7 @@ git push
 Only one person should run a phase at a time, so `LOG.md` never conflicts.
 
 ## Ground rules (from `CONTRIBUTING.md`)
-- **Test sessions 6, 7, 21, 61, 66, 81 are locked** until Phase 5. Load the split from `outputs/results/split_profiles.json`, and never re-draw it.
+- **Test sessions 6, 7, 21, 61, 66, 81 were used once** (Phase 5). Don't tune anything on them now. Load the split from `outputs/results/split_profiles.json`, and never re-draw it.
 - Use `src/config.py` for the target, inputs and forbidden columns. `pm`, `stator_tooth` and `stator_yoke` are **never** inputs (leakage).
 - Every number in slides or reports must come from a file in `outputs/results/`.
 - Data, `.venv` and saved models are git-ignored. Don't commit them.
@@ -58,10 +70,14 @@ CONTRIBUTING.md      team rules: workflow, code style, logging formats
 PLAN.md  LOG.md  CONCEPTS.md  VIVA_QA.md
 requirements.txt     pinned versions (Python 3.11)
 data/README.md       dataset source, version, SHA-256 (data itself is git-ignored)
+app.py               Streamlit recorded-data replay demo (Phase 6, I5)
 docs/problem.md      Phase 1 problem definition
+docs/flow_diagram.md (+ .png)  required flow diagram (Mermaid)
+docs/report/report.md          written report in rubric order
 docs/showcase/       interactive EDA explorer (index.html + eda_data.js)
-notebooks/           01_data_check, 02_eda, ... (run top to bottom)
-src/                 config.py, data.py, plotting.py, download_data.py
-outputs/figures/     all PNG figures (eda_01 ... eda_08)
-outputs/results/     every number we quote (JSON/CSV), incl. split_profiles.json
+notebooks/           01_data_check, 02_eda, 03_preprocessing_features, 04_modelling,
+                     05_evaluation, 06_innovation, MST_final (one-file summary)
+src/                 config.py, data.py, features.py, modelling.py, plotting.py, download_data.py
+outputs/figures/     all PNG figures (eda_*, feat_*, model_*, eval_*, innov_*)
+outputs/results/     every number we quote (JSON/CSV), incl. split_profiles.json, test_predictions.csv
 ```

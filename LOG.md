@@ -693,3 +693,739 @@ The reviewer of each stage is the owner of the next stage (B reviews A, C review
 - Arnav's venv is `..\.venv`. Teammates create `.venv` inside their clone.
 
 ---
+
+## 2026-10-10 08:40 | Phase — | Session start: Arnav asked to run all remaining phases (3–7)  (run by: Arnav)
+**Tags:** [DECISION] [SETUP]
+**What we did:**
+- Phases 3–7 were run end to end in one go (everyone's parts), with full logging.
+- Checked the repo: `main` is in sync with `origin/main` (one commit, "v1"), nothing new from teammates.
+- Installed `streamlit` for the Phase 6 demo.
+**Why:** The team wants the whole MST pipeline done and documented. Each owner (C, D, E, …) must still study their phase's notebook and log entries, and present it.
+**How:**
+- `git fetch` + `git status`.
+- `pip install streamlit` → **streamlit 1.65.0**, 168 s.
+- Laptop: 16 CPU cores and 15.7 GB RAM, about 3.2 GB free at the start, so model training was kept memory-light.
+**Result:** Entries from here on say "(run by: Arnav, for owner X)". The owner of each phase should review it before presenting it.
+**Nuances / gotchas:**
+- The plan's rule is "one phase per session". Here Arnav explicitly asked for all phases. Each phase still gets its own summary entry and acceptance checklist.
+- Streamlit is added to `requirements.txt` pinned at 1.65.0, as the plan says ("add streamlit when this starts, and log it").
+**Alternatives considered:** Stopping after each phase for review. Not what was asked; owners review afterwards instead.
+**Viva angle:** Q: Who did what? A: Phases were owned per member (`PLAN.md` team table). Every step is logged with numbers, and each owner reviewed and presents their part.
+
+---
+
+## 2026-10-10 08:55 | Phase 3.1 | Cleaning re-checked, physics + EWMA features built, causality proven  (run by: Arnav, for owner C)
+**Tags:** [DATA] [DECISION] [NUANCE] [RESULT]
+**What we did:**
+- Wrote `src/features.py` (shared by training, evaluation and the app) and `notebooks/03_preprocessing_features.ipynb`.
+- Re-checked that no cleaning is needed, then added 5 physics features and 32 EWMA "thermal memory" features: **45 model inputs** in total.
+**Why:**
+- Phase 2 showed that no single raw signal explains the winding (best |r| 0.632), and that the winding follows the current with a delay of minutes.
+- Physics features turn signals into quantities linked to heat. EWMAs give the model memory of the recent past.
+**How:**
+- **Cleaning:** 0 missing values, 0 duplicates, 69 unbroken session blocks (asserted in code). Row order kept.
+- **Physics:** `i_s = √(i_d²+i_q²)`, `u_s = √(u_d²+u_q²)`, `i_s_sq = i_s²`, `p_el = 1.5·(u_d·i_d + u_q·i_q)`, `p_mech = torque·speed·2π/60`.
+- **EWMA:** `df.groupby("profile_id")[col].transform(lambda s: s.ewm(span=sp, adjust=True).mean())`.
+  - Spans **120 / 600 / 1800 / 5400 samples = 1 / 5 / 15 / 45 min**.
+  - Applied to 8 base signals: `i_s, i_s_sq, p_el, u_s, motor_speed, torque, coolant, ambient`.
+- **Feature sets** (for the Phase 6 ablation): raw 8, full 45, no_ewma 13, no_engineered 24, no_torque 39, with_leakage 48.
+**Result:**
+- Physics features took 0.4 s and EWMA features under 4 s (3.5–3.8 s across runs).
+- `data/processed/features.parquet`: 298.3 MB, git-ignored.
+- `outputs/results/feature_list.json`, `features_summary.json` and `feature_target_correlations.csv` are committed.
+- Training ranges: `i_s` 0–361.52 A; `p_el` −44,473 to 52,472 W; `p_mech` −55,121 to 49,618 W.
+**Nuances / gotchas:**
+- **Causality is proven, not assumed.** We computed the EWMAs of session 20 on its first 10,000 rows only, and compared them with the full-session run. The largest difference was **0.0**, so no future data leaks in.
+- **Computing EWMA on test rows is not leakage.** Each test row only uses its own session's past signals, which is what a real controller would have. Nothing is learned from other rows.
+- **Warm-up:** 27.9 % of training rows lie in the first 45 min of their session (9.5 % within 15 min, 3.2 % within 5 min). There, the long EWMAs are still "settling". With `adjust=True`, the first EWMA value equals the raw value. Expect bigger errors near session starts.
+- **Why 1.5 in `p_el`:** the dataset's dq values use the amplitude-invariant Park transform, where three-phase power = 1.5·(u_d·i_d + u_q·i_q). Without the 1.5 the "power" would be off by a constant. That doesn't hurt trees, but it would be physically wrong.
+- **`p_el` vs `p_mech`:** their training means are 7,722 W vs 6,601 W. The difference is roughly the motor's losses (heat!), a nice physics sanity check. We don't use it as a feature, to keep things simple.
+- `features.parquet` also stores the 3 forbidden temperatures, **only** for the Phase 6 "with leakage" ablation. They are not in the 45-feature list.
+**Alternatives considered:**
+- Rolling (flat-window) means: abrupt edges, and they need a full window, so they're worse at session starts.
+- EWMS (exponentially weighted standard deviation, used by the dataset authors): more features for less gain; logged as an `[IDEA]`.
+- An LSTM sequence model: much more complex, and not needed when EWMAs already carry the memory.
+**Viva angle:** Q: What is EWMA and why did you use it? A: An average of the past where recent values count more. The winding temperature depends on the last few minutes of current (thermal inertia). The 5-minute EWMA of current has r = 0.705 with the winding temperature, against 0.583 for the raw current.
+
+---
+
+## 2026-10-10 08:57 | Phase 3.2 | Feature figures and the leakage checklist  (run by: Arnav, for owner C)
+**Tags:** [EDA] [RESULT] [DECISION]
+**What we did:** Plotted a raw signal against its EWMAs, and the correlation of all 45 features with the target (training rows). Then ran the leakage checklist in code.
+**Why:** To show visually that the memory features track the temperature better than raw signals, and to prove that no leakage got in.
+**How:** `notebooks/03_preprocessing_features.ipynb`, sections 8, 9 and 11.
+**Result:**
+- `outputs/figures/feat_01_ewma_example.png`: session 20. Raw `i_s²` jumps instantly, and longer EWMAs are smoother and lag more. The 5-min EWMA follows the shape of the winding curve far more closely than the raw signal.
+- `outputs/figures/feat_02_feature_target_correlation.png`: all 45 features sorted by |r|.
+  - **The top 5 are all EWMAs of current:** `i_s_ewma_600` 0.705, `i_s_sq_ewma_600` 0.685, `i_s_ewma_1800` 0.673, `i_s_ewma_120` 0.655, `i_s_sq_ewma_1800` 0.651.
+  - Best |r| per group: EWMA 0.705, raw 0.632, physics 0.583.
+- **Leakage checklist:**
+  - [x] No `pm`, `stator_tooth` or `stator_yoke` in the features.
+  - [x] `profile_id` is not a feature.
+  - [x] The target is not a feature.
+  - [x] EWMA computed per profile and causally (max difference 0.0).
+  - [x] Test profiles untouched by any tuning (features only *computed* for them).
+  - [ ] → [x] in Phase 4: the scaler is fitted only on training folds (it sits inside a `Pipeline`).
+**Nuances / gotchas:**
+- **The 5-min span correlates best, not the 45-min one** (0.705 vs 0.558 for `i_s_ewma_5400`). That fits the Phase 2 lag of a few minutes. The long spans still matter to models, as a slow "baseline heat" signal.
+- **Correlation only measures straight-line links.** Trees can use features with low r (e.g. `torque_ewma`) in non-linear ways, so we keep all 45 and let regularisation and the models decide.
+**Alternatives considered:** Feature selection by correlation threshold. Rejected: it would throw away features that only help non-linearly. Lasso shows which features a linear model can drop (Phase 4).
+**Viva angle:** Q: How do you know the EWMA features help? A: Their correlation with the winding temperature is higher (best 0.705 vs 0.583 raw), and the Phase 4 models and the Phase 6 ablation measure the RMSE gain directly.
+
+---
+
+## 2026-10-10 09:00 | Phase 3 summary  (run by: Arnav, for owner C)
+**Tags:** [RESULT]
+**What we did:** Finished Phase 3: pre-processing and feature engineering.
+
+**1. Recap in simple words**
+- No cleaning was needed. We re-proved it in code, and kept the row order.
+- The split was loaded from `split_profiles.json`, never re-drawn.
+- We added 5 physics features (current/voltage magnitude, current², electrical and mechanical power).
+- We added 32 EWMA "memory" features (8 signals × 1, 5, 15, 45 min), per session and past-only. We proved they use no future data.
+- The memory features correlate best with the winding temperature (0.705 vs 0.583 raw). 45 inputs are saved for Phase 4.
+
+**2. Acceptance checklist**
+- [x] The leakage checklist is fully ticked (the scaler item is enforced by the Pipeline in Phase 4, logged there).
+- [x] The processed data and feature list are saved (`data/processed/features.parquet`, `outputs/results/feature_list.json`).
+- [x] Figures are saved and logged (`feat_01`, `feat_02`).
+- [x] Concepts added: data leakage (Phase 2), train/validation/test, GroupKFold, feature engineering, EWMA (with formula and span), standardisation.
+
+**3. What every teammate must be able to explain from this phase**
+- Each physics feature's formula and why it relates to heat (I²R; why the 1.5 in p_el).
+- What an EWMA is: the formula μ_t = (1−α)μ_{t−1} + αx_t, α = 2/(span+1), and the span-to-minutes conversion (÷120).
+- Why EWMA must be per session, past-only and computed before thinning, and how we proved causality.
+- Why computing features on test rows is not leakage.
+- The warm-up problem at session starts.
+
+**4. Key numbers**
+
+| Quantity | Value | Source |
+|---|---|---|
+| Model inputs | 45 (8 raw + 5 physics + 32 EWMA) | `feature_list.json` |
+| EWMA spans | 120/600/1800/5400 samples = 1/5/15/45 min | same |
+| Causality check | max difference 0.0 | `features_summary.json` |
+| Best r: raw i_s → i_s EWMA 5 min | 0.583 → 0.705 | same |
+| Training rows in the 45-min warm-up | 27.9 % | same |
+| features.parquet | 298.3 MB (git-ignored) | same |
+
+**Viva angle:** see "Pre-processing & features" in `VIVA_QA.md`.
+
+---
+
+## 2026-10-10 09:01 | Phase 4.1 | Cross-validation protocol, timing tests, baselines and linear models  (run by: Arnav, for owner D)
+**Tags:** [DECISION] [RESULT] [NUANCE]
+**What we did:**
+- Wrote `src/modelling.py`: the `CoolantPlusOffset` baseline, `regression_metrics()`, `group_cv()` (GroupKFold(5) by session, which also records training RMSE) and `summarise_cv()`.
+- Built `notebooks/04_modelling.ipynb` and ran B0, B1, M1, M2, Ridge and Lasso.
+**Why:** We needed one fair protocol for every model: same rows, same folds, unseen sessions in every validation fold.
+**How:**
+- **Timing test first:** one fit on every 10th training row (95,184 rows) took Linear 0.7 s, Ridge 0.3 s, Lasso 21.2 s, Random Forest (100 trees, depth 16) 99.0 s and LightGBM (600 trees) 19.1 s.
+- **Decision:** all CV uses **every 10th training row** (`K_CV = 10`): 118,980 rows from 63 sessions.
+- Ridge α ∈ {0.01, 0.1, 1, 10, 100, 1000}; Lasso α ∈ {0.01, 0.1, 1.0}. Scaling sits inside `Pipeline([StandardScaler, model])`.
+**Result (CV RMSE mean ± std over 5 folds, °C):**
+- **B0 mean** 29.088 ± 1.258 (R² −0.031).
+- **B1 coolant + offset** 26.033 ± 1.636 (R² 0.159).
+- **M1 Linear, 8 raw inputs** 16.093 ± 1.600 (R² 0.681).
+- **M2 Linear, 45 features** 5.178 ± 0.565 (R² 0.966).
+- **Ridge** best at α = 10: 5.172 ± 0.576.
+- **Lasso** best at α = 0.01: 5.202 ± 0.615. It dropped 11 features: ambient, u_d, p_el, i_s_ewma_120, i_s_ewma_600, i_s_ewma_5400, p_el_ewma_120, u_s_ewma_1800, motor_speed_ewma_120, torque_ewma_120, ambient_ewma_120. At α = 1.0 it dropped 34 features and got worse (6.575, underfitting).
+- Figure `outputs/figures/model_02_regularisation.png`: Ridge is flat for α ≤ 100 and worse at 1000; Lasso gets worse as α grows.
+**Nuances / gotchas:**
+- **Feature engineering is worth 10.9 °C.** The same linear model goes 16.093 → 5.178 °C (−68 %) just from the physics + EWMA features. This is the main "thermal memory" evidence, together with the Phase 6 ablation.
+- **The coolant thermometer alone barely helps:** B1 is 26.03 vs 29.09 °C for B0.
+- **Lasso dropping some EWMAs doesn't mean they're useless.** They are highly correlated with their neighbours (e.g. `i_s_ewma_600` vs `i_s_sq_ewma_600`), and Lasso keeps one per group.
+- **The scaler is inside the Pipeline.** This ticks the last leakage-checklist item from Phase 3.
+**Alternatives considered:**
+- Full-resolution CV: about 10× slower for Random Forest, with no expected gain, since neighbouring rows are near-copies (measured in Phase 4.3).
+- `LassoCV`/`RidgeCV`: they use row-random folds by default, which leak. We used our own group folds instead.
+**Viva angle:** Q: How much did feature engineering help? A: The same Linear Regression went from 16.09 °C RMSE (8 raw signals) to 5.18 °C (45 physics + EWMA features), on unseen sessions in 5-fold group CV.
+
+---
+
+## 2026-10-10 09:20 | Phase 4.2 | Random Forest, LightGBM and MLP tuned; CV table  (run by: Arnav, for owner D)
+**Tags:** [RESULT] [NUANCE] [DECISION]
+**What we did:** Tuned Random Forest (4 configurations) and LightGBM (8), trained one MLP, and saved the comparison table.
+**Why:** To test whether non-linear models beat the linear ones on unseen sessions.
+**How:**
+- **Configurations:** `ParameterSampler(..., random_state=42)`.
+  - RF: `n_estimators=100, max_samples=0.5`, with depth {12, 20, None}, `min_samples_leaf` {5, 20, 50}, `max_features` {0.33, 0.5}.
+  - LightGBM: `num_leaves` {15, 31, 63, 127}, `learning_rate` {0.03, 0.05, 0.1}, `n_estimators` {300, 600, 1000}, `min_child_samples` {20, 100, 300}, `colsample_bytree` {0.7, 1.0}, `subsample` {0.8, 1.0}, **no early stopping**.
+  - MLP: `(64, 32)`, `alpha=1e-4`, `batch_size=512`, `max_iter=40`, `early_stopping=False`, scaled inputs.
+- Saved `outputs/results/cv_results.csv`, `tuning_rf.csv`, `tuning_lgbm.csv` and the figure `model_01_cv_comparison.png`.
+**Result:**
+
+| Model | CV RMSE (°C) | MAE | R² | Training RMSE | Fit s/fold |
+|---|---|---|---|---|---|
+| M6 MLP (64-32) | **4.919 ± 0.763** | 3.116 | 0.970 | 2.663 | 17.1 |
+| M5 LightGBM (15 leaves, 1000 trees, lr 0.1, min_child 300, subsample 0.8) | 5.061 ± 0.836 | 3.317 | 0.968 | 1.144 | 5.8 |
+| M3 Ridge (α = 10) | 5.172 ± 0.576 | 3.052 | 0.966 | 4.992 | 0.3 |
+| M2 Linear (45) | 5.178 ± 0.565 | 3.067 | 0.966 | 4.987 | 0.5 |
+| M3 Lasso (α = 0.01) | 5.202 ± 0.615 | 3.019 | 0.966 | 5.046 | 23.2 |
+| M4 Random Forest (depth 12, leaf 20, max_features 0.33) | 5.822 ± 0.844 | 3.787 | 0.958 | 2.327 | 10.3 |
+
+- MLP per fold: RMSE 5.215 / 5.967 / 4.449 / 5.231 / 3.734 °C; max |error| 76.3 / 45.1 / 47.7 / 44.1 / 63.9 °C.
+- `model_01_cv_comparison.png`: bars = validation RMSE ± std, dots = training RMSE.
+**Nuances / gotchas:**
+- **The trees overfit sessions.** LightGBM's training RMSE is 1.14 vs 5.06 °C validation; Random Forest's is 2.33 vs 5.82 °C. The linear models have almost no gap (4.99 vs 5.17). Trees also can't extrapolate beyond their leaves.
+- **The top five models are within 0.3 °C** (4.92–5.20), smaller than their fold std (0.57–0.84). CV can't really separate them. This matters in Phase 5.
+- **The worst single errors are huge (44–76 °C per fold)** while 95 % of out-of-fold errors are below 9.41 °C. Hypothesis, checked in Phase 5: session starts. 16 of 63 training sessions start above 30 °C (session 46 starts at 99.3 °C).
+- **Figure 1 cosmetics:** the value labels overlap the error bars and the legend overlaps the B0 bar. Not fixed, because that needs a 23-min re-run; the Phase 5 figure `eval_12` shows the same models more clearly.
+**Alternatives considered:**
+- A bigger tuning budget: a 23-min notebook run is already near the laptop's practical limit, and differences are below fold noise anyway.
+- `HistGradientBoostingRegressor` (the Master Guide's choice): it's sklearn's version of the same algorithm as LightGBM, which was already installed.
+**Viva angle:** Q: Which model was best in cross-validation, and was it clearly best? A: The MLP, at 4.92 ± 0.76 °C, but five models were within 0.3 °C, less than the fold spread, so CV couldn't really separate them.
+
+---
+
+## 2026-10-10 09:22 | Phase 4.3 | Subsampling check, finalists, out-of-fold errors, saved models, success target  (run by: Arnav, for owner D)
+**Tags:** [DECISION] [RESULT] [NUANCE]
+**What we did:** Checked what the 10× row thinning costs, applied the pre-written finalist rule, computed out-of-fold (OOF) errors, retrained and saved the finalists, and set the numeric success target **before** opening the test set.
+**Why:** Plan Phase 4 rules. The target must be fixed before we see any test number.
+**How:**
+- **Finalist rule** (written before seeing the table): best model; best of another family; best linear.
+- Final fits:
+  - MLP: every 10th training row (118,980 rows);
+  - LightGBM: every 10th row, chosen by the thinning check;
+  - Ridge: all 1,189,792 training rows.
+- Saved `outputs/models/*.joblib` (git-ignored) and `model_metadata.json` (inputs, settings, versions, split).
+- **Target rule:** test RMSE ≤ CV RMSE + 2 × CV std, rounded up to 0.1 °C; and ≤ half of B1's CV RMSE.
+**Result:**
+- **Thinning:** LightGBM CV 5.061 °C with every 10th row vs 5.146 °C with every 5th (+0.085 °C, within noise), at 5.8 vs 12.5 s per fold. So thinning costs nothing measurable.
+- **Finalists: M6 MLP, M5 LightGBM, M3 Ridge.** Within 0.3 °C of the best: MLP, LightGBM, Ridge, Linear, Lasso.
+- **OOF errors of the MLP:** mean −0.466 °C, **std σ = 4.959 °C**, 95th-percentile |error| 9.413 °C, range −47.67 to +76.31 °C. σ is used as the Phase 6 safety margin.
+- **Fit times and sizes:** MLP 77.6 s, 0.1 MB; LightGBM 22.4 s, 1.5 MB; Ridge 2.9 s, 3 KB.
+- **Success targets:** test RMSE of the MLP **≤ 6.5 °C** (4.919 + 2 × 0.763 = 6.445, rounded up) and **≤ 13.02 °C** (half of B1's 26.03).
+**Nuances / gotchas:**
+- **The simple-vs-best trade-off (plan rule: discuss if a simpler model is within 0.3 °C).**
+  - Ridge is only 0.25 °C behind the MLP, has the *smallest* fold spread (± 0.58 vs ± 0.76), is 45 weights in a 3 KB file, and runs in microseconds on any controller.
+  - The MLP's mean is the best, but it's more variable.
+  - We kept the pre-written rule (MLP = final model) and carried Ridge as the deployable alternative.
+- **Why not fit the final MLP and LightGBM on all rows?** CV showed no gain from more rows (5th vs 10th), and the hyperparameters were tuned at this density.
+**Alternatives considered:**
+- A "one-standard-error rule" (pick the simplest model within one CV std of the best). It would have chosen Ridge. We had not pre-registered it, so we didn't switch. Logged as a lesson for Phase 5.
+**Viva angle:** Q: How did you choose the final model, and what target did you set? A: With a rule fixed in advance: lowest CV RMSE (the MLP, 4.92 °C), plus LightGBM and Ridge as finalists. Before testing we set the target: test RMSE ≤ 6.5 °C and ≤ half the coolant baseline (13.02 °C).
+
+---
+
+## 2026-10-10 09:23 | Phase 4 summary  (run by: Arnav, for owner D)
+**Tags:** [RESULT]
+**What we did:** Finished Phase 4: model development.
+
+**1. Recap in simple words**
+- Every model was judged with the same session-wise 5-fold CV on every 10th training row (118,980 rows, 63 sessions).
+- Baselines: always-the-mean 29.09 °C, coolant + offset 26.03 °C.
+- Our 45 features cut the linear model's error from 16.09 to 5.18 °C. That's the biggest single improvement.
+- Tuned models: MLP 4.92, LightGBM 5.06, Ridge 5.17, Lasso 5.20, Random Forest 5.82 °C. The trees overfit the training sessions.
+- Finalists MLP, LightGBM and Ridge were retrained and saved. Target set before testing: ≤ 6.5 °C.
+
+**2. Acceptance checklist**
+- [x] The CV table has at least 6 models (9: B0, B1, M1, M2, Ridge, Lasso, RF, LightGBM, MLP).
+- [x] Tuning ranges, best parameters and times are logged (Phases 4.1, 4.2; `tuning_*.csv`).
+- [x] A `[DECISION]` entry explains the finalists (Phase 4.3).
+- [x] Concepts added: linear regression, Ridge/Lasso (regularisation), decision tree, Random Forest (bagging), gradient boosting, cross-validation, hyperparameter tuning, overfitting vs underfitting, bias–variance (plus baselines, MLP, out-of-fold predictions).
+
+**3. What every teammate must be able to explain from this phase**
+- GroupKFold by session, and why the same rows and folds are used for every model.
+- Why every 10th row is enough (measured: +0.085 °C with every 5th).
+- What each model does in one sentence, and why trees overfit here (training vs validation RMSE).
+- The finalist rule, and the Ridge-vs-MLP trade-off.
+- How the success target (≤ 6.5 °C) was set *before* the test.
+
+**4. Key numbers**
+
+| Quantity | Value | Source |
+|---|---|---|
+| CV rows / sessions / folds | 118,980 / 63 / 5 | `modelling_summary.json` |
+| B0 / B1 CV RMSE | 29.088 / 26.033 °C | `cv_results.csv` |
+| M1 → M2 (features) | 16.093 → 5.178 °C | same |
+| MLP / LightGBM / Ridge CV RMSE | 4.919 / 5.061 / 5.172 °C | same |
+| MLP OOF residual σ | 4.959 °C | `modelling_summary.json` |
+| Success target | test RMSE ≤ 6.5 °C | same |
+
+**Viva angle:** see the "Models" section of `VIVA_QA.md`.
+
+---
+
+## 2026-10-10 09:24 | Phase 5.1 | TEST SET OPENED (once) and overall + per-session results  (run by: Arnav, for owner E)
+**Tags:** [RESULT] [NUANCE]
+**What we did:** Ran `notebooks/05_evaluation.ipynb` **once**. **The test set was first opened at 2026-10-10 09:24:52** (printed in the notebook). The finalists and baselines predicted all 141,024 rows of the 6 test sessions at full 2 Hz.
+**Why:** The final, honest exam on unseen sessions (plan rule 4: used once).
+**How:** Loaded the saved finalists from `outputs/models/`. Refitted B0 and B1 on all training rows. `regression_metrics()` on all rows and per session. Saved `test_metrics.csv`, `test_metrics_per_profile.csv`, `test_predictions.csv` and `evaluation_summary.json`. Only markdown was added to the notebook afterwards; it was **not re-executed**.
+**Result (overall):**
+
+| Model | Test RMSE | MAE | R² | max abs | p95 abs | mean signed | session-mean MAE |
+|---|---|---|---|---|---|---|---|
+| M3 Ridge | **4.966** | 2.993 | 0.963 | 73.573 | 9.030 | +0.380 | 2.847 |
+| M5 LightGBM | 5.105 | 2.860 | 0.961 | 74.873 | 9.877 | −0.873 | 2.380 |
+| M6 MLP (final) | 6.005 | 3.693 | 0.946 | 60.312 | 14.597 | −1.946 | 2.991 |
+| B1 | 24.484 | 20.147 | 0.106 | 72.000 | 50.917 | +2.404 | 19.543 |
+| B0 | 25.941 | 22.225 | −0.004 | 63.495 | 45.961 | −1.626 | 23.078 |
+
+- **MLP per session (RMSE / MAE / max / signed, °C):**
+  - session 6: 9.430 / 7.635 / 21.873 / −6.599
+  - session 7: 1.226 / 0.800 / 6.175 / +0.297
+  - session 21: 5.988 / 3.318 / 60.312 / −1.252
+  - session 61: 3.620 / 2.371 / 22.669 / −0.538
+  - session 66: 3.708 / 2.194 / 34.226 / +0.122
+  - session 81: 2.998 / 1.630 / 17.923 / +0.723
+- **Success targets: both MET.** The MLP's 6.005 °C ≤ 6.5 °C, and ≤ 13.02 °C.
+- **Figures:**
+  - `eval_01_test_session_6.png` … `eval_06_test_session_81.png`: predicted vs actual over time, one per session.
+  - `eval_07_residual_histogram.png`: errors centred slightly below 0 (mean −1.95 °C).
+  - `eval_08_predicted_vs_actual.png`: points hug y = x, but fall below it at high temperatures.
+  - `eval_12_cv_vs_test.png`: CV vs test for all models.
+- **Accuracy in plain words (MLP):** 54.5 % of predictions within ±2 °C, 75.6 % within ±5 °C.
+**Nuances / gotchas:**
+- **The CV winner (MLP) came last among the finalists on the test set**: gap +1.086 °C, against LightGBM +0.044 and Ridge −0.205.
+  - CV couldn't separate the top models: they were 0.28 °C apart against a fold std of 0.58–0.84 °C.
+  - 6 test sessions is a small sample, and one hard session (6) dominates the MLP's score.
+- **We did NOT switch the final model after seeing this.** Choosing on test results would turn the test set into a validation set. We report all finalists honestly instead.
+- The **session-mean MAE** favours LightGBM (2.380) while the row-weighted RMSE favours Ridge (4.966). This is exactly why plan v2 asked for both: long sessions dominate row-weighted scores.
+- The baselines score *better* on the test set than in CV (B0 25.94 vs 29.09). The test sessions' temperature spread is a bit narrower, which shows the test set isn't harder overall, just different.
+- **Legend overlap** in `eval_12_cv_vs_test.png` (over the B0 bar) was not fixed, because that would mean re-running the test evaluation.
+**Alternatives considered:** Re-running with a "better" final model. Rejected (see above). Logged as a lesson: pre-register a one-standard-error simplicity rule next time.
+**Viva angle:** Q: Your best CV model did worst on the test set. Why, and did you switch? A: The top models were within 0.3 °C in CV, smaller than the fold noise, and one hard test session (6) hurt the MLP most. We didn't switch, because choosing after seeing test results is test-set leakage. Ridge (4.97 °C) and LightGBM (5.11 °C) were also finalists and are reported.
+
+---
+
+## 2026-10-10 09:26 | Phase 5.2 | Where the model fails: hot temperatures, one hard session, session starts  (run by: Arnav, for owner E)
+**Tags:** [RESULT] [NUANCE] [IDEA]
+**What we did:** Analysed the errors: by temperature band, over time since session start, and for under-prediction in the hot zone.
+**Why:** Plan Phase 5 interpretation and N8: under-prediction is the dangerous direction.
+**How:** `notebooks/05_evaluation.ipynb` sections 8, 9 and 12. "Hot" = actual ≥ **104.79 °C**, the training 90th percentile (from training data, never from test data).
+**Result:**
+- `eval_09_error_by_temperature.png` (MLP):
+  - MAE ≤ 5.3 °C up to 90 °C;
+  - **7.53 / 7.82 °C at 90–100 / 100–110 °C**, with mean signed error −6.22 / −6.64 °C, i.e. systematic under-prediction when hot.
+- **Hot rows:** 14,496 (10.3 % of test rows).
+  - MLP under-predicts by more than 5 °C in **52.0 %** of them (LightGBM 27.0 %).
+  - Mean signed error on hot rows: MLP −6.48, LightGBM −2.62 °C.
+  - Largest under-prediction: MLP −22.03 °C (session 66, minute 21.3, actual 86.99 °C); LightGBM −33.26 °C (session 6, minute 263.4).
+- `eval_01_test_session_6.png`: while the coolant was raised to about 50–65 °C under load, the MLP stayed 10–18 °C too low for over an hour. Session RMSE 9.43 °C.
+- `eval_10_error_vs_session_time.png`: mean |error| is highest in the **first 5-minute window** (Phase 6 gives the exact number from the saved predictions). It drops below 2 °C by about 45 minutes, and later bumps come from the few long sessions.
+- `eval_03_test_session_21.png`: **the biggest error, +60.31 °C at minute 0.** A cold motor (about 20 °C) starts under heavy load, and both models predict 80–95 °C.
+**Nuances / gotchas:**
+- **The session-start error is an artefact of how the EWMA starts.** With `ewm(adjust=True)`, the first value equals the current reading, so a session that starts under heavy load "looks" like it has been at that load for a long time, and the model predicts a hot winding. The reverse happens for sessions that start already hot (16 of 63 training sessions start above 30 °C). A real controller would keep its EWMAs running from power-on, so this is mostly caused by cutting the recordings into sessions.
+- **The Phase 4 hypothesis is only partly confirmed.** The very first minutes are bad, but averaged over the first 45 minutes the MAE (3.665 °C) equals that after (3.701 °C).
+- **Under-prediction when hot is the most important limitation for safety.** The Phase 6 alarm adds a margin to handle it.
+**Alternatives considered:** Excluding the first minutes from the score. Rejected: that hides a real limitation. We report it instead.
+**Viva angle:** Q: Where does your model fail? A: (1) In the first minutes of a session, because the memory features start "full", so a cold motor under sudden load looks hot (up to +60 °C). (2) When hot (> 90 °C), where it under-predicts by about 6 °C on average. (3) Session 6, with high coolant under load.
+
+---
+
+## 2026-10-10 09:27 | Phase 5.3 | Permutation importance and the physics check (N7)  (run by: Arnav, for owner E)
+**Tags:** [RESULT] [NUANCE]
+**What we did:** Computed permutation importance of the final MLP, for single features and for physically grouped feature families.
+**Why:** To check that the model relies on physically sensible inputs (plan N7).
+**How:** `sklearn.inspection.permutation_importance(scoring="neg_root_mean_squared_error", n_repeats=3, random_state=42)` on every 10th test row (14,103 rows; baseline RMSE on this sample 6.02 °C). Then a manual grouped version: whole families are shuffled jointly. This is interpretation only, after the single evaluation.
+**Result** (`eval_11_permutation_importance.png`, `permutation_importance.csv`, `permutation_importance_grouped.csv`). RMSE increase when a family is shuffled:
+- **coolant 19.67 °C**
+- voltage 16.11
+- speed 15.40
+- current 11.32
+- power 8.96
+- torque 2.45
+- ambient 0.52
+
+The top single features are `coolant_ewma_600`, `i_s_sq`, `motor_speed_ewma_600`, `u_d` and `i_s_sq_ewma_600`.
+**Nuances / gotchas:**
+- **The ranking matches physics:**
+  - coolant sets the floor the winding cools towards;
+  - current² (I²R) is the heat source;
+  - speed and voltage describe the operating point (iron losses grow with frequency, and voltage ∝ speed);
+  - torque adds little because it's almost a copy of i_q (r = 0.9965);
+  - ambient matters least because it varies little (8.78–30.71 °C, mostly 20–28 °C).
+- **Correlated features share importance.** Shuffling one EWMA hurts less because its siblings still carry the information. That's why the grouped view is the honest one.
+- **Shuffling creates impossible combinations** (e.g. high current with zero voltage), so importances for a flexible model like an MLP can be inflated. Read them as a ranking, not exact values.
+**Alternatives considered:** SHAP values (optional in the plan). Skipped: not installed, and the grouped permutation already answers the physics question.
+**Viva angle:** Q: Which inputs matter most, and does it make physical sense? A: Coolant, then voltage and speed, then current. Coolant sets the base temperature, current² makes the copper loss, and speed/voltage reflect iron losses and the operating point. Torque matters little because it's nearly a copy of i_q.
+
+---
+
+## 2026-10-10 09:28 | Phase 5 summary  (run by: Arnav, for owner E)
+**Tags:** [RESULT]
+**What we did:** Finished Phase 5: the final evaluation, test set used once (opened 2026-10-10 09:24:52).
+
+**1. Recap in simple words**
+- On 6 unseen sessions the final MLP reached RMSE 6.01 °C (MAE 3.69, R² 0.946). Both pre-set targets were met.
+- The other finalists did better on the test set (Ridge 4.97, LightGBM 5.11 °C). CV couldn't separate them, and we did not switch models after seeing the test.
+- The worst errors happen at session starts (the EWMA starts "full") and when the motor is hot (> 90 °C), where the MLP under-predicts by about 6 °C.
+- The importance ranking (coolant > voltage ≈ speed > current > power > torque > ambient) matches the physics.
+- Every number is in `evaluation_summary.json` and the CSVs; the predictions are saved for Phase 6 and the demo.
+
+**2. Acceptance checklist**
+- [x] The test set is evaluated once, with the time logged (2026-10-10 09:24:52).
+- [x] The results CSVs are saved (`test_metrics.csv`, `test_metrics_per_profile.csv`, `test_predictions.csv`).
+- [x] At least 6 figures are saved and logged (12: `eval_01` … `eval_12`).
+- [x] The interpretation is written (notebook section 15 + Phases 5.1–5.3).
+- [x] Concepts added: MSE, RMSE, MAE, R², residuals, permutation importance, generalisation gap (plus p95 and signed error, session-mean MAE).
+
+**3. What every teammate must be able to explain from this phase**
+- RMSE vs MAE vs R², and what our 6.01 / 3.69 / 0.946 mean in plain words.
+- Why the CV winner lost on the test set, and why we did not switch (test-set leakage).
+- The two failure modes (session starts; under-prediction when hot) and their causes.
+- The importance ranking and its physics.
+- The success targets and how they were set before testing.
+
+**4. Key numbers**
+
+| Quantity | Value | Source |
+|---|---|---|
+| Test opened | 2026-10-10 09:24:52 | `evaluation_summary.json` |
+| Final MLP test RMSE / MAE / R² | 6.005 / 3.693 / 0.946 | `test_metrics.csv` |
+| Ridge / LightGBM test RMSE | 4.966 / 5.105 °C | same |
+| B1 / B0 test RMSE | 24.484 / 25.941 °C | same |
+| CV → test gap (MLP) | +1.086 °C | `evaluation_summary.json` |
+| Hot rows under-predicted > 5 °C | MLP 52.0 %, LightGBM 27.0 % | same |
+| Within ±2 / ±5 °C (MLP) | 54.5 % / 75.6 % | same |
+
+**Viva angle:** see the "Evaluation" section of `VIVA_QA.md`.
+
+---
+
+## 2026-10-10 09:15 | Phase 7.1 | Flow diagram (required by the instructions)  (run by: Arnav, coordinator A)
+**Tags:** [SETUP] [RESULT]
+**What we did:** Wrote `docs/flow_diagram.md` (Mermaid) and exported `docs/flow_diagram.png` (3136 × 1132 px).
+**Why:** The MST instructions require a flow diagram with the pre-processing and visualisation steps clearly documented.
+**How:**
+- Four columns: 1 DATA → 2 VISUALISATION & PRE-PROCESSING → 3 MODELLING → 4 EVALUATION & INNOVATION.
+- Every box names its notebook and key numbers (e.g. "test = 6, 7, 21, 61, 66, 81 (10.60 %)", "8 thermal lag", "45 inputs").
+- Exported with `npx -y @mermaid-js/mermaid-cli -i docs/flow_diagram.md -o docs/flow_diagram.png -b white -s 4` (mermaid-cli 12.0.0).
+**Result:** `docs/flow_diagram.png`, readable on one slide.
+**Nuances / gotchas:**
+- **[BUG] `-w 1400` (width) is not an option in mermaid-cli 12** ("error: unknown option '-w'"). Fix: drop it and use `-s 4` (scale) for resolution.
+- The first `npx` run took 429 s, mostly downloading the package and its headless browser.
+- The first layout (one long column) was 1236 × 7328 px, unreadable on a slide. Re-done as four Mermaid subgraphs with `direction TB` inside, linked subgraph-to-subgraph so the inner direction is respected.
+- mermaid-cli writes `flow_diagram-1.png` for Markdown input; it is renamed to `flow_diagram.png`.
+**Alternatives considered:** draw.io (manual, harder to keep in sync with the numbers); matplotlib boxes (more code).
+**Viva angle:** Q: Walk us through your workflow. A: Data check → freeze test sessions → EDA on training sessions (8 plots) → no cleaning needed → physics + EWMA features → scaling in a Pipeline → 9 models with session-wise CV → finalists → one test evaluation → interpretation → innovation (ablation, memory curve, safety alarm, data efficiency, demo).
+
+---
+
+## 2026-10-10 09:30 | Phase 6.5 | I5: Streamlit recorded-data replay demo (app.py)  (run by: Arnav, for owner E)
+**Tags:** [SETUP] [RESULT] [NUANCE]
+**What we did:** Built and tested `app.py`, a Streamlit app that replays a test session minute by minute.
+- It shows the estimated vs actual winding temperature, the coolant, the "estimate + k·σ" margin line and the alarm threshold.
+- A green/red alarm lamp, plus the measured Phase 5 test metrics.
+**Why:** Plan v2 makes the demo a core deliverable. A live replay explains the virtual sensor far better in the viva than a table.
+**How:**
+- Run `streamlit run app.py`.
+- **Live mode:** loads only the chosen session's rows from `data/processed/features.parquet` (pyarrow `filters`), loads the selected finalist (`outputs/models/*.joblib`) and predicts.
+- **Fallback mode:** if those git-ignored files are missing, it replays `outputs/results/test_predictions.csv` (saved once in Phase 5).
+- Sidebar: test session, model, alarm threshold (default 104.79 °C = training 90th percentile), margin k ∈ {0, 1, 2} with σ = 4.959 °C (OOF std from Phase 4), and replay speed.
+- Tested with `python -m streamlit run app.py --server.headless true --server.port 8501`.
+**Result:**
+- The app starts with no console errors and shows "Mode: live model: M6 MLP (64-32)".
+- **Session 6 at minute 30:** estimate 71.5 °C vs actual 72.1 °C (error −0.6 °C).
+- **Play:** advances 5 min of data per frame (minute 60 → 160 in about 9 s).
+- The results line reads RMSE 6.00 °C, MAE 3.69 °C and R² 0.946, matching `evaluation_summary.json`.
+**Nuances / gotchas:**
+- **It's a recorded replay, not live hardware.** That's labelled at the top of the app. The measured temperature is only drawn for comparison and is never an input.
+- **The app never retrains.** It loads the saved pipeline and builds features with the same `src/features.py`.
+- **Small UX quirk:** after "Play to the end", the position slider jumps back to its previous value on the next interaction (Streamlit widget state). Harmless.
+- **The model files are git-ignored.** Teammates must run notebooks 01, 03 and 04 to get live mode, or use the fallback.
+- Added `streamlit==1.65.0` to `requirements.txt` (install took 168 s); `pip_freeze.txt` refreshed (131 packages).
+**Alternatives considered:**
+- Gradio: not in the plan.
+- A Jupyter widget: less presentable.
+- Hosting on Streamlit Community Cloud: possible later, but the model and features would have to be included there.
+**Viva angle:** Q: What does your demo show, and is it real-time? A: It replays a recorded, held-out test session through the saved model, showing the estimate, the real sensor value and an alarm lamp with a safety margin. It runs live on recorded data; no physical motor is connected.
+
+---
+
+## 2026-10-11 09:55 | Phase 6.0 | Session restart: the Phase 6 notebook run was cut off and is being re-run  (run by: Arnav)
+**Tags:** [BUG] [SETUP]
+**What we did:** Found that the previous session ended while `notebooks/06_innovation.ipynb` was still executing. The notebook was re-run from the top.
+**Why:** The team rules require every notebook to run top to bottom with its outputs saved inside the file. A half-finished run leaves the notebook without outputs.
+**How:**
+- Checked the files. `ablation.csv` and `innov_01_ablation.png` were written at 2026-10-10 09:58, but no memory-curve, safety or data-efficiency files existed, and `06_innovation.ipynb` still had no outputs.
+- Kept a copy of the partial `ablation.csv` to compare with the re-run.
+- Added a small cache to `cv_rmse()`: identical input lists are cross-validated once, because the memory curve's "no memory" and "full" steps equal the ablation's "no EWMA" and "full" variants.
+- Re-ran with `jupyter nbconvert --execute --inplace`.
+**Result:** see Phase 6.1–6.4. The partial ablation from the first run already showed:
+- full 4.919 °C;
+- no EWMA 13.176 °C;
+- no engineered 6.561 °C;
+- no torque 4.809 °C;
+- raw only 13.407 °C;
+- with leakage 1.146 °C.
+**Nuances / gotchas:**
+- **[BUG] Symptom:** "background command didn't finish before the previous session ended". **Cause:** the long run was attached to the old terminal session. **Fix:** re-run, and check `git status` and the result-file timestamps at the start of every session.
+- The first run took about 32 min for the ablation alone (MLP fits were slow while other jobs shared the CPU).
+- `git status`: only commit "v1" exists remotely, and no teammate pushes have arrived. All of Phases 3–7 is still local and uncommitted.
+**Alternatives considered:** Keeping the partial CSV and writing the rest by hand. Rejected: the notebook must reproduce every number itself.
+**Viva angle:** —
+
+---
+
+## 2026-10-11 22:12 | Phase 6.0b | Second interruption of the Phase 6 run; teammate commit on GitHub  (run by: Arnav)
+**Tags:** [BUG] [NUANCE] [SETUP]
+**What we did:**
+- Found that the second Phase 6 run (started 09:58) also stopped after the ablation (files written 10:37) when the terminal session ended. It was re-run a third time while the session stays open.
+- Found two new commits on GitHub from teammate **Abhilasha** (`abhilashadas2406-eng`).
+**Why:** The notebook must finish top to bottom, and the remote changes must not be silently overwritten.
+**How:**
+- `git fetch` → `origin/main` moved from `661d0d6` (v1) to `7ba8d3b`.
+- `git show --stat` on `7ec5125` and `7ba8d3b`: both are "Update PLAN.md" web edits changing **one line**, the Phase 3 checklist line, to "[x] Phase 3 … (done 11-10-26 by Abhilasha)". No notebooks or code came with them.
+- **Timing check:** one MLP fit (95,000 rows, 45 features, 40 epochs) now takes **13.8 s**, against about 75 s per fit during the earlier runs.
+**Result:**
+- The re-run's ablation was identical to the first run, row by row: deterministic, as expected.
+- **The remote change is NOT merged yet.** Our local `PLAN.md` also changes that same line, so `git pull` will need a one-line merge. Arnav decides how to record Phase 3 ownership.
+**Nuances / gotchas:**
+- **[BUG] Long jobs die with the session.** A background command is killed when the session that started it ends. **Fix:** keep the session open until long runs finish, and check result-file timestamps at every session start.
+- **Why the earlier runs were slow (best guess, not proven):** the laptop throttled while other jobs shared the CPU (power plan "Balanced").
+- **Team coordination:** two people may have worked on Phase 3. If Abhilasha (owner C?) has her own Phase 3 notebook, it must be compared with `notebooks/03_preprocessing_features.ipynb` before anyone overwrites anything.
+**Alternatives considered:**
+- Pulling and resolving the conflict automatically. Not done: it edits the team's shared record of who did what, so it's Arnav's decision.
+- Detaching the job via Task Scheduler. Not done: it changes system configuration.
+**Viva angle:** —
+
+---
+
+## 2026-10-11 23:12 | Phase 6.1 | I1: ablation study, what each idea is worth  (run by: Arnav, for owner D)
+**Tags:** [RESULT] [NUANCE]
+**What we did:** Re-ran cross-validation of the **final model (M6 MLP)** six times, changing only the input set each time.
+**Why:** To prove with numbers that each idea helps, and to show *why* the forbidden temperatures are forbidden (plan I1).
+**How:**
+- `notebooks/06_innovation.ipynb` section 2, `cv_rmse(cols)`: the same MLP settings, the same 118,980 rows (every 10th training row) and the same GroupKFold(5).
+- The feature sets come from `src/features.py → feature_sets()`.
+- Identical input lists are cached in memory, so the memory-curve endpoints aren't recomputed.
+**Result** (`outputs/results/ablation.csv`, `innov_01_ablation.png`):
+
+| Variant | Features | CV RMSE (°C) | vs full |
+|---|---|---|---|
+| full | 45 | 4.919 ± 0.763 | — |
+| no EWMA | 13 | 13.176 ± 1.367 | **+8.257** |
+| no engineered (no physics) | 24 | 6.561 ± 0.617 | +1.642 |
+| no torque | 39 | 4.809 ± 1.033 | −0.110 |
+| raw only | 8 | 13.407 ± 1.379 | +8.488 |
+| with leakage (forbidden) | 48 | **1.146 ± 0.112** | −3.774 |
+
+**Nuances / gotchas:**
+- **The EWMA memory is the single most valuable idea, worth about 8.3 °C.** Without it the MLP is about as bad as with raw inputs only (13.18 vs 13.41).
+- **The leakage variant (1.15 °C) is the proof that those columns are a cheat**: almost perfect, because the model copies the neighbouring sensors. This was the planned "show the cheat" experiment. These columns are never used anywhere else.
+- **Dropping torque doesn't hurt** (−0.11 °C, inside the ± 1.03 fold spread), consistent with torque ≈ i_q (r = 0.9965). A deployable model could skip torque.
+- **Reproducibility check:** this ablation was computed four times (2026-10-10 09:58, 2026-10-11 10:37, 22:24 and 23:12) with identical numbers to 15 digits (fixed seeds).
+**Alternatives considered:** Ablating with LightGBM instead. The plan says "the final model", so we used the MLP.
+**Viva angle:** Q: How do you know your memory features matter? A: Ablation: the same MLP on the same folds goes from 4.92 °C to 13.18 °C RMSE when the EWMA features are removed.
+
+---
+
+## 2026-10-11 23:29 | Phase 6.2 | I2: the thermal-memory curve  (run by: Arnav, for owner C)
+**Tags:** [RESULT]
+**What we did:** Starting from raw + physics features (no memory), we added the EWMA spans one by one (1 → 5 → 15 → 45 min) and cross-validated the MLP each time.
+**Why:** To tell the "thermal memory" story with numbers: how much memory the model needs.
+**How:** `notebooks/06_innovation.ipynb` section 3, the same CV as I1.
+**Result** (`outputs/results/memory_curve.csv`, `innov_02_memory_curve.png`). CV RMSE:
+- no memory: **13.176**
+- + 1 min: **9.171**
+- + 5 min: **5.158**
+- + 15 min: **4.996**
+- + 45 min: **4.919 °C**
+**Nuances / gotchas:**
+- **Most of the gain arrives by 5 minutes of memory** (13.18 → 5.16 °C). That matches the Phase 2 lag analysis (median best lag 2.5 min).
+- The 15 and 45-min spans add only 0.24 °C more. They capture the slow "background heat", but they are also the spans hit hardest by the session-start warm-up artefact.
+**Alternatives considered:** Testing each span alone. Cumulative steps are easier to explain and answer "how much memory is enough?".
+**Viva angle:** Q: How long a memory does the model need? A: About 5 minutes gets most of the gain: the CV RMSE falls from 13.18 °C (none) to 5.16 °C (1 + 5 min), and the 15 and 45-min spans add only 0.24 °C more.
+
+---
+
+## 2026-10-11 23:30 | Phase 6.3 | I3: safety-aware alarm, session-start errors, and a rounding bug  (run by: Arnav, for owner E)
+**Tags:** [RESULT] [BUG] [NUANCE] [DECISION]
+**What we did:**
+- Built the safety alarm "estimate + k·σ ≥ T_hot" on the **saved Phase 5 predictions** (no new test evaluation), for k = 0, 1, 2.
+- Measured how much of the error sits in the first 5 minutes of each test session.
+**Why:** Plan N8 and I3. Under-prediction when hot is the dangerous error, and Phase 5 showed the MLP under-reads by about 6 °C above 90 °C.
+**How:**
+- σ = **4.959 °C**, the std of the MLP's *out-of-fold* errors on the training sessions (Phase 4), so the margin never saw the test set.
+- T_hot = **104.791 °C**, the training 90th percentile, the same "hot" as Phase 5.
+- Recall = TP/(TP+FN); false-alarm rate = FP/(FP+TN); precision = TP/(TP+FP). Rows are converted to minutes at 120 rows/min.
+**Result** (`outputs/results/safety_alarm.csv`, `session_start_errors.csv`, `innov_03_safety_alarm.png`):
+
+| k | Margin | Hot rows caught | Missed hot minutes | False alarms | False-alarm minutes | Precision |
+|---|---|---|---|---|---|---|
+| 0 | 0.00 °C | 57.2 % | 51.7 | 0.70 % | 7.4 | 90.4 % |
+| 1 | 4.96 °C | 66.4 % | 40.6 | 2.30 % | 24.3 | 76.8 % |
+| 2 | 9.92 °C | **70.0 %** | 36.2 | 5.84 % | 61.6 | 57.9 % |
+
+- 14,496 hot test rows, the same count as Phase 5 (asserted in code).
+- `innov_03_safety_alarm.png`: test session 61 (the hottest) with the 2σ margin line and the alarm periods shaded, plus caught vs false-alarm bars.
+- **Session starts** (first 5 min = 2.55 % of test rows):
+
+  | Prediction | MAE first 5 min | MAE after | Signed first 5 min |
+  |---|---|---|---|
+  | MLP | 12.34 °C | 3.47 °C | +12.04 °C |
+  | LightGBM | 12.52 | 2.61 | |
+  | Ridge | 18.64 | 2.58 | |
+
+**Nuances / gotchas:**
+- **[BUG] Symptom:** the first Phase 6 run counted **14,765** hot rows, against **14,496** in Phase 5.
+  - **Cause:** `test_predictions.csv` rounds temperatures to 3 decimals. Test session 21 plateaus at about 104.79 °C, which is almost exactly T_hot (the training 90th percentile; the bench evidently holds the motor near that temperature often). Rounding pushed 269 plateau rows over the threshold.
+  - **Fix:** section 4 reads the full-precision temperatures from `features.parquet` (same rows, same order, checked with `np.allclose`) and **asserts** the Phase 5 count.
+  - The rounded version had shifted "caught" and "false alarms" by under 0.3 points, but precision by up to 1.7 points (92.06 vs 90.36 % at k = 0). The old file was kept in the scratchpad only.
+- **The safety margin is a trade-off, not a cure.** Going from k = 0 to k = 2 catches 12.8 points more hot rows (57.2 → 70.0 %) but multiplies false alarms 8× (0.70 → 5.84 %). **Even k = 2 misses 30 % of hot rows**, because the MLP under-reads when hot. A real protection system would need a better model in that zone, or an extra margin there.
+- Some "missed" hot rows sit within a few hundredths of a degree of the threshold (the session 21 plateau), so a row-level count is a strict measure.
+- **Session starts dominate the residual error.** The positive signed error (+12.04 °C) confirms over-prediction, caused by the EWMA starting at the current value. Ridge suffers most there (18.64 °C), yet is still best overall, because the starts are only 2.55 % of rows.
+- **Re-runs:** this notebook had to be run four times in total: two interrupted sessions, then this bug fix. The final run took 3,463 s on battery power.
+**Alternatives considered:**
+- Choosing T_hot from the test data. Rejected: it must come from training data.
+- An event-level metric (alarm within N minutes of an overheating episode): fairer for engineers, but more complex. Logged as an `[IDEA]`.
+**Viva angle:** Q: How does your safety alarm work, and what does it cost? A: Alarm if the estimate + k·σ reaches 104.79 °C, with σ = 4.96 °C from training-session errors. With k = 2 it catches 70.0 % of hot moments (57.2 % without a margin) at 5.84 % false alarms. Even then 30 % are missed, which we state as a limitation.
+
+---
+
+## 2026-10-11 23:36 | Phase 6.4 | I4: data-efficiency curve  (run by: Arnav, for owner D)
+**Tags:** [RESULT] [IDEA]
+**What we did:** Held out 20 % of the training sessions as validation, then trained the MLP on 25, 50, 75 and 100 % of the remaining development sessions.
+**Why:** To estimate how much test-bench data a new motor would need (plan I4).
+**How:**
+- `GroupShuffleSplit(test_size=0.2, random_state=42)` on the 63 training sessions: 50 development, 13 validation. The test set is not involved.
+- The 25–75 % fractions were repeated 3 times with random session picks (`rng` seed 42) and averaged.
+**Result** (`outputs/results/data_efficiency.csv`, `innov_04_data_efficiency.png`). Mean validation RMSE:
+- 25 % (12 sessions): **9.56 °C** (runs 10.43 / 7.98 / 10.25)
+- 50 % (25): **6.36 °C**
+- 75 % (38): **5.18 °C**
+- 100 % (50): **4.66 °C**
+**Nuances / gotchas:**
+- **The curve is still falling at 100 %**, so more recorded sessions would still improve the model. That's an honest "future work" point.
+- **With few sessions the result swings a lot** (7.98 to 10.43 °C at 25 %), depending on *which* sessions were picked. That's why the repeats are needed.
+- This validation RMSE (4.66 °C) is not comparable one-to-one with the 5-fold CV (4.92 °C): it is a different, single split.
+**Alternatives considered:** Using the test set for this curve, as the plan's wording suggested ("test RMSE"). Rejected: it would re-use the test set four times.
+**Viva angle:** Q: Would more data help? A: Yes. Validation error fell from 9.56 °C (12 sessions) to 4.66 °C (50 sessions) and was still falling, so recording more sessions is worthwhile.
+
+---
+
+## 2026-10-11 23:38 | Phase 6 summary  (run by: Arnav, for owners C, D, E)
+**Tags:** [RESULT]
+**What we did:** Finished Phase 6: innovation extras I1–I5.
+
+**1. Recap in simple words**
+- **Ablation:** the memory features are worth about 8.3 °C (4.92 → 13.18 °C without them). Torque can be dropped, and the forbidden sensors would make it a trivial cheat (1.15 °C).
+- **Memory curve:** about 5 minutes of memory gives most of the gain (13.18 → 5.16 °C).
+- **Safety alarm:** a 2σ margin catches 70.0 % of overheating moments (57.2 % without) at 5.84 % false alarms. Session starts are the biggest remaining error (12.34 °C in the first 5 min).
+- **Data efficiency:** the error is still falling with more sessions (9.56 → 4.66 °C), so more data would help.
+- **Demo:** a Streamlit replay app (`app.py`) shows all of this live for the viva.
+
+**2. Acceptance checklist**
+- [x] At least 3 innovation items done, each with a results file, a figure and a `LOG.md` entry: I1, I2, I3, I4 (+ I5 app). `ablation.csv`, `memory_curve.csv`, `safety_alarm.csv`, `data_efficiency.csv`; `innov_01` … `innov_04`.
+- [x] Each is explainable in 2 lines in `VIVA_QA.md` (Innovation section).
+
+**3. What every teammate must be able to explain from this phase**
+- What an ablation is, and why only one thing changes at a time.
+- Why the 1.15 °C "with leakage" result proves those columns are forbidden.
+- The safety margin trade-off (caught vs false alarms vs precision), and why σ comes from out-of-fold errors.
+- Why session starts are hard (EWMA warm-up), and why more data would still help.
+- How the demo works, and that it's a recorded replay.
+
+**4. Key numbers**
+
+| Quantity | Value | Source |
+|---|---|---|
+| CV RMSE full / no EWMA / with leakage | 4.919 / 13.176 / 1.146 °C | `ablation.csv` |
+| Memory: none → 1 → 5 → 15 → 45 min | 13.18 → 9.17 → 5.16 → 5.00 → 4.92 °C | `memory_curve.csv` |
+| Alarm caught / false alarms (k = 0 / 2) | 57.2 / 70.0 % and 0.70 / 5.84 % | `safety_alarm.csv` |
+| MLP MAE, first 5 min vs after | 12.34 vs 3.47 °C | `session_start_errors.csv` |
+| Data efficiency, 12 → 50 sessions | 9.56 → 4.66 °C | `data_efficiency.csv` |
+
+**Viva angle:** see the "Innovation" section of `VIVA_QA.md`.
+
+---
+
+## 2026-10-11 23:40 | Phase 7.2 | Slides (12), report, one-file notebook; every slide number cross-checked by code  (run by: Arnav, coordinator A)
+**Tags:** [RESULT] [BUG] [SETUP]
+**What we did:**
+- Built the 12-slide deck "Motor Winding Virtual Sensor" (published online, private until shared; ask Arnav for the link) with speaker notes.
+- Wrote `docs/report/report.md` in rubric order.
+- Created and ran `notebooks/MST_final.ipynb` (one-file summary).
+- Checked every key slide number against the results files with code.
+**Why:** Phase 7 deliverables. Plan rule: "every number in the slides matches the results files".
+**How:**
+- **Slides, in plan order:** cover → problem → data → flow diagram → EDA → features → models/CV → test results → failure modes → ablation + memory → safety + data efficiency + demo → limits/lessons/team. The figures (`docs/flow_diagram.png`, `eda_08`, `feat_01`, `eval_05`, `eval_03`, `eval_09`, `innov_01`–`innov_04`) were uploaded as deck assets.
+- **`MST_final.ipynb`:** reads every number from `outputs/results/` and shows the key figures. Section 7 rebuilds one session's features **from the raw parquet** with `src/features.py`, loads the saved MLP and predicts.
+- **Cross-check script:** extracts the slide text and compares 56 formatted values (data facts, EDA, CV table, test table, ablation, safety, data efficiency) with the CSV/JSON files. Saved to `outputs/results/slides_number_check.json`.
+**Result:**
+- `MST_final.ipynb`: 18 cells, 0 errors, 27 s. End-to-end check: test session 6 **RMSE 9.4301 °C now = 9.4301 °C saved in Phase 5**, so the saved pipeline reproduces exactly.
+- Cross-check: **56 numbers, 0 mismatches** (after the fix below).
+**Nuances / gotchas:**
+- **[BUG] Double rounding.** The first cross-check found 3 mismatches:
+  - The MLP's test RMSE is **6.0048 °C**. We had rounded the 3-decimal display "6.005" up to "6.01", but the correct 2-decimal value is **6.00**.
+  - Linear-45's CV std is 0.5645, so **± 0.56**, not 0.57.
+  - B0's test MAE is 22.2248, so **22.22**, not 22.23.
+  - **Fix:** corrected the slides, `docs/report/report.md`, `README.md` and `VIVA_QA.md`. Earlier `LOG.md` entries that say "6.01 °C" (Phase 5 summary recap and "what to explain") should be read as **6.00 °C**; the log is append-only, so they are corrected here instead. Their 3-decimal tables ("6.005") were right.
+  - **Lesson:** always round from the raw value, never from an already-rounded display.
+- **The end-to-end check re-predicts one test session** (session 6). That re-uses the test set for a reproducibility check only. It gives the identical number, and no decision depends on it.
+- The deck is an online slide deck; it can be presented in the browser and exported as PPTX/PDF.
+**Alternatives considered:** Building slides by hand in PowerPoint. Slower, and harder to keep in sync with the numbers.
+**Viva angle:** Q: How do you know the numbers in your slides are right? A: A script compared 56 slide numbers with the result files (0 mismatches). The summary notebook also rebuilds a test session from raw data and reproduces its Phase 5 RMSE exactly (9.4301 °C).
+
+---
+
+## 2026-10-11 23:43 | Phase 7 summary + FINAL PROJECT SUMMARY  (run by: Arnav, coordinator A)
+**Tags:** [RESULT]
+**What we did:** Finished all deliverables except each member's mock viva, which every teammate must still do themselves.
+
+**1. Recap in simple words**
+- We built a **virtual sensor**: a model that estimates the copper winding temperature of a 50 kW PMSM from signals its controller already measures.
+- Physics features and especially **EWMA "thermal memory"** features made the difference: the linear-model error fell from 16.09 to 5.18 °C, and removing the memory costs about 8.3 °C.
+- With the test set used once, the finalists reached **RMSE 4.97 (Ridge), 5.11 (LightGBM) and 6.00 °C (MLP, our pre-registered final)**, against 24.48 °C for "coolant + offset". Both targets were met.
+- The weak spots are the first minutes of a session (the EWMA warm-up) and hot periods, where the MLP under-reads. A 2σ safety margin catches 70.0 % of hot moments.
+- Everything is logged and reproducible: notebooks 01–06 + `MST_final`, a flow diagram, a report, 12 slides, a Streamlit demo, 95 viva Q&As and 40 concepts.
+
+**2. Phase 7 acceptance checklist**
+- [x] The flow diagram PNG exists (`docs/flow_diagram.png`).
+- [x] The notebooks run top to bottom (01–06 and `MST_final`, each executed with outputs saved; 04, 05 and 06 got findings cells added afterwards without re-execution).
+- [x] The slides (12) and report (`docs/report/report.md`) are done.
+- [x] Every number in the slides matches the results files (`slides_number_check.json`: 56 checked, 0 mismatches).
+- [ ] **Every teammate has done a mock viva. Still to do, by each member:** pair up and quiz each other with 10 random questions from `VIVA_QA.md`, one at a time, grading against the A: lines.
+
+**3. What every teammate must be able to explain (the whole project in 5 points)**
+- The problem and why a virtual sensor, plus why `pm`/`stator_tooth`/`stator_yoke` are forbidden (the ablation's 1.15 °C cheat).
+- Why we split by whole sessions and froze the test set first (rows are near-copies; fair exam).
+- What EWMA features are and why they matter (2.5-min lag; 8.3 °C ablation gain; 5 min of memory gives most of it).
+- How models were compared (GroupKFold by session, same rows and folds) and why the CV winner lost on test (differences below fold noise; we didn't switch).
+- The limits: session starts, hot under-prediction, one motor, ≤ 141.36 °C, and how the safety margin trades misses for false alarms.
+
+**4. Final numbers (cross-checked against `outputs/results/`)**
+
+| Quantity | Value | File |
+|---|---|---|
+| Data | 1,330,816 rows · 69 sessions · 184.84 h · 2 Hz | `data_check_summary.json` |
+| Test sessions (used once, 2026-10-10 09:24:52) | 6, 7, 21, 61, 66, 81 (10.60 % of rows) | `split_profiles.json` |
+| Inputs | 45 (8 raw + 5 physics + 32 EWMA) | `feature_list.json` |
+| CV RMSE: MLP / LightGBM / Ridge | 4.919 / 5.061 / 5.172 °C | `cv_results.csv` |
+| CV RMSE: Linear raw → 45 features | 16.093 → 5.178 °C | same |
+| **Test RMSE: Ridge / LightGBM / MLP (final)** | **4.966 / 5.105 / 6.005 °C** | `test_metrics.csv` |
+| Test MAE / R² (MLP) | 3.693 °C / 0.946 | same |
+| Test RMSE: B1 coolant + offset / B0 mean | 24.484 / 25.941 °C | same |
+| Ablation: full / no EWMA / with leakage | 4.919 / 13.176 / 1.146 °C | `ablation.csv` |
+| Safety k = 2: caught / false alarms | 70.0 % / 5.84 % | `safety_alarm.csv` |
+| Session start: MLP MAE first 5 min vs after | 12.34 vs 3.47 °C | `session_start_errors.csv` |
+| Data efficiency 12 → 50 sessions | 9.56 → 4.66 °C | `data_efficiency.csv` |
+
+**Viva angle:** the whole `VIVA_QA.md` (95 Q&As).
+
+---
+
+## 2026-10-11 23:45 | Handover  (run by: Arnav)
+**Tags:** —
+**Where we stopped:** Phases 0–6 are complete and Phase 7 is complete except the mock vivas. **Nothing from 2026-10-10 / 11 is committed or pushed yet.**
+**What's next (exact next steps):**
+1. **Merge Abhilasha's GitHub edit before pushing.** `origin/main` has 2 commits that change only the Phase 3 checklist line in `PLAN.md` ("done 11-10-26 by Abhilasha"). Our local `PLAN.md` changes the same line.
+   - Commit locally, then `git pull`, and resolve that one line.
+   - Decide with Abhilasha how Phase 3 is credited (and whether she has her own Phase 3 notebook to compare).
+   - Then push.
+2. **Every member:** pull, read `LOG.md` top to bottom, then do the mock viva (see above). Owners B–E: review "your" phase's notebook and log entries, since Arnav ran them on your behalf.
+3. **Fill in the team names (B–E)** in `PLAN.md`, `docs/report/report.md`, the cover and closing slides, and the tracker.
+4. **Share** the deck, the tracker and the EDA showcase with teammates (each page's Share menu; Editors for the tracker).
+**Open issues / questions:**
+- Phase 3 ownership/credit (Abhilasha's commit).
+- The deadline is still not recorded.
+- `misc.txt` (YouTube link) is still unexplained.
+- Optional polish: the legend overlap in `model_01` and `eval_12` (cosmetic; fixing them means re-running notebooks 04/05, and 05 must not be re-run).
+**Before you start, you must know:**
+- **Long notebook runs die if the terminal session closes,** and the laptop is about 2× slower on battery. Plug in, and keep the session open for notebooks 04 (23 min) and 06 (26 min plugged in).
+- **Never re-run notebook 05** (the test evaluation) to "improve" anything. It was used once, by design.
+- To run the demo: `streamlit run app.py`. Live mode needs the git-ignored `features.parquet` and models (run notebooks 01, 03, 04); otherwise it replays the saved predictions.
+
+---
