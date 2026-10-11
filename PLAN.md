@@ -7,7 +7,7 @@
 - [x] Phase 0: Setup & data check (done 2026-10-07, Arnav)
 - [x] Phase 1: Problem understanding (done 2026-10-07, Arnav)
 - [x] Phase 2: Exploratory data analysis (EDA) (done 2026-10-07, run by Arnav for owner B; B to review)
-- [ x] Phase 3: Pre-processing & feature engineering(done 11-10-26 by Abhilasha
+- [x] Phase 3: Pre-processing & feature engineering(done 11-10-26 by Abhilasha)
 - [ ] Phase 4: Model development
 - [ ] Phase 5: Evaluation & interpretation (the test set is used here, once)
 - [ ] Phase 6: Innovation extras
