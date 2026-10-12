@@ -106,6 +106,6 @@
     "torque": 7.62939055221068e-06
   },
   "parquet_size_mb": 72.2,
-  "csv_load_seconds": 7.66,
-  "parquet_load_seconds": 0.42
+  "csv_load_seconds": 2.81,
+  "parquet_load_seconds": 0.78
 }
