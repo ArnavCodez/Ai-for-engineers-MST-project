@@ -16,3 +16,6 @@ __pycache__/
 # Never commit API keys or tokens
 kaggle.json
 .env
+
+# Built showcase pages (they embed the test data). Commit only the builder + template; share the published link.
+showcase/motor_showcase*.html

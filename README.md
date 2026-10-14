@@ -11,7 +11,7 @@ We estimate the **stator winding temperature (°C)** of an electric motor from s
 | 4 | 9 models, session-wise 5-fold CV; finalists MLP, LightGBM, Ridge (`notebooks/04_modelling.ipynb`) | ✅ |
 | 5 | Test set used **once** (2026-10-10 09:24:52): MLP RMSE 6.00 °C, Ridge 4.97, LightGBM 5.11; targets met (`notebooks/05_evaluation.ipynb`) | ✅ |
 | 6 | Innovation: ablation, memory curve, safety alarm, data efficiency (`notebooks/06_innovation.ipynb`) + demo `app.py` | ✅ |
-| 7 | Flow diagram, report (`docs/report/report.md`), 12 slides, `MST_final.ipynb`: done. **Mock viva for every member still to do** | almost |
+| 7 | Flow diagram, report (`docs/report/report.md`), 12 slides, `MST_final.ipynb`, interactive showcase (`showcase/`): done. **Mock viva for every member still to do** | almost |
 
 **Headline result:** a virtual sensor that estimates the winding temperature of unseen sessions with RMSE about 5–6 °C, against 24.5 °C for "coolant + offset". The EWMA thermal-memory features are worth more than 8 °C (ablation: 4.92 → 13.18 °C without them).
 
@@ -20,10 +20,11 @@ The **interactive showcase (present this)**, the **slides**, the **live team tra
 ## Start here (new teammate)
 Read these in order. Viva questions can go to **anyone**, so read all of them:
 1. `PLAN.md`: the phases, the rules and the team split (plan **v2**)
-2. `LOG.md`: everything we did, why, and every number, top to bottom
-3. `docs/problem.md`: the problem in plain words
-4. `CONCEPTS.md`: every concept explained simply
-5. `VIVA_QA.md`: likely viva questions with our answers
+2. `CONTRIBUTING.md`: how we work and how to log
+3. `LOG.md`: everything we did, why, and every number, top to bottom
+4. `docs/problem.md`: the problem in plain words
+5. `CONCEPTS.md`: every concept explained simply
+6. `VIVA_QA.md`: likely viva questions with our answers
 
 ## One-time setup (Windows)
 1. Install **Python 3.11** (python.org). Newer versions can lack library wheels.
@@ -45,6 +46,15 @@ Read these in order. Viva questions can go to **anyone**, so read all of them:
 streamlit run app.py
 ```
 It replays one of the 6 test sessions: the estimated vs real winding temperature, a safety margin and an overheating alarm lamp. Without the saved models it falls back to the predictions saved in Phase 5, so it always works.
+
+## The interactive showcase (best for the presentation)
+A single web page with the whole project: a replay of the 6 test sessions with an alarm lamp, a **what-if lab** where our saved MLP runs inside the browser (change the coolant temperature or the load), the thermal-memory explainer, the model leaderboard, the ablation and the safety-alarm trade-off.
+- **Online:** ask Arnav for the link.
+- **Offline:** build it once, then double-click `showcase/motor_showcase.html` (needs only a browser):
+  ```
+  python showcase/build_showcase.py
+  ```
+  This needs the data and the saved models (notebooks 01, 03 and 04). It re-checks every number against `outputs/results/` before writing the page. The built pages embed test data, so they are git-ignored.
 
 ## Every work session
 ```
@@ -71,6 +81,7 @@ PLAN.md  LOG.md  CONCEPTS.md  VIVA_QA.md
 requirements.txt     pinned versions (Python 3.11)
 data/README.md       dataset source, version, SHA-256 (data itself is git-ignored)
 app.py               Streamlit recorded-data replay demo (Phase 6, I5)
+showcase/            interactive web showcase: build_showcase.py + template.html (built pages are git-ignored)
 docs/problem.md      Phase 1 problem definition
 docs/flow_diagram.md (+ .png)  required flow diagram (Mermaid)
 docs/report/report.md          written report in rubric order

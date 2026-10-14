@@ -303,3 +303,20 @@ Grouped by phase. Add questions as you go, and replace the `<our number>` placeh
 
 **Q:** Walk us through your flow diagram.
 **A:** Data check → freeze 6 test sessions → EDA on 63 training sessions (8 plots) → no cleaning needed → physics + EWMA features → scaling inside a Pipeline → 9 models with session-wise CV → finalists → one test evaluation → interpretation → innovation.
+
+## Showcase (Phase 7)
+
+**Q:** Is the model in your web page the real one, or just a recording?
+**A:** Both are there. The replay shows the saved Phase 5 predictions. The what-if lab runs the saved MLP and Ridge weights in JavaScript after rebuilding all 45 features from the raw signals. Over all 141,024 test rows the browser matches the saved predictions to 0.0005 °C, which is the CSV's 0.001 °C rounding.
+
+**Q:** What happens to the estimate if the coolant is 10 °C warmer?
+**A:** For test session 66 the MLP's estimate rises by 8.53 °C on average, the peak goes from 127.05 to 136.17 °C, and the time above the hot level grows from 29.5 to 50.3 min. That's sensible: the winding sits on top of the coolant temperature. But it's what the model believes, not a measurement, and 0.83 % of those rows are outside the training range.
+
+**Q:** Your page shows the test sessions. Isn't that using the test set again?
+**A:** It's presentation only. The models were frozen and evaluated once (2026-10-10 09:24:52). Nothing in the page changes a model, a feature or a setting, the same as the reproducibility check in `MST_final`.
+
+**Q:** In the what-if lab, what does "load scale" change?
+**A:** It multiplies i_d, i_q and torque by the same factor (torque is almost proportional to i_q, r = 0.9965), and keeps voltages and speed as recorded. It's a rough what-if, not a motor simulation, and the page warns when inputs leave the training range.
+
+**Q:** How do you know the numbers on the web page are right?
+**A:** The build script reads every number from `outputs/results/` and re-checks them before writing the page: per-session RMSE, the safety table (k = 0, 1, 2) and the browser-style predictions. If any check fails, it stops. The results are saved in `showcase_check.json`.

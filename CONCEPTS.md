@@ -395,3 +395,19 @@ Add a concept the first time it is used. Improve an entry when our understanding
 - **Why we used it here:** innovation I4. It tells GE how much data a new motor would need.
 - **Where in our code:** `notebooks/06_innovation.ipynb` section 6 → `data_efficiency.csv`, `innov_04_data_efficiency.png`.
 - **Common confusion / trap:** with few sessions the result depends a lot on *which* sessions were picked. That's why the smaller fractions are repeated 3 times with different random picks and averaged.
+
+### Inference (running a trained model), and moving it out of Python
+- **In one line:** inference means using a trained model to make predictions; it only needs the learned numbers (weights), not the training code.
+- **Explained simply:** Training finds the numbers. For our MLP these are 4,960 weights and 97 biases, plus the scaler's 45 means and 45 spreads. Predicting is then just arithmetic: standardise the 45 inputs, multiply by the first weight table, add the biases, set negatives to zero (ReLU), repeat for the second layer, and the output is the temperature. That arithmetic can run anywhere. Our web page does it in JavaScript, which is also how a motor controller would run a virtual sensor in its own firmware.
+- **Formula (if any):** z = (x − mean) / std; h₁ = ReLU(z·W₁ + b₁); h₂ = ReLU(h₁·W₂ + b₂); ŷ = h₂·W₃ + b₃.
+- **Why we used it here:** the interactive showcase runs the saved MLP and Ridge in the browser, with no Python needed.
+- **Where in our code:** `showcase/build_showcase.py` (exports the weights), `showcase/template.html` (functions `addFeatures` and `predict`).
+- **Common confusion / trap:** the model is only half of it. The features must be built exactly as in training (same EWMA formula, per session, float32), or the predictions drift. We proved the port by matching the saved predictions to 0.0005 °C.
+
+### What-if (sensitivity) analysis
+- **In one line:** change one input on purpose and watch how the model's output moves.
+- **Explained simply:** We take a recorded session, change one thing (e.g. coolant +10 °C), rebuild the features and predict again. Comparing the two estimates shows what the model has learned about that input. If the response matches the physics (a warmer coolant gives a warmer winding), that builds trust. If it doesn't, the model may be relying on something odd.
+- **Formula (if any):** effect = mean(ŷ_what-if − ŷ_recorded).
+- **Why we used it here:** the what-if lab in the showcase. Example: session 66 with coolant +10 °C gives +8.53 °C on average (`showcase_check.json`).
+- **Where in our code:** `showcase/template.html` (the what-if lab); `showcase/build_showcase.py` (the saved example).
+- **Common confusion / trap:** it is not a measurement. There is no real sensor reading for an invented scenario, and inputs pushed outside the training range give unreliable answers. The page shows the share of such rows.

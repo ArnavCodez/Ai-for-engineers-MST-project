@@ -1,0 +1,1771 @@
+<title>Motor Winding Virtual Sensor</title>
+<meta name="description" content="Interactive showcase of the UCS321 MST project: a machine-learning virtual sensor for the winding temperature of an electric motor.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a test-bench console. One wide replay bench under the masthead, then a single column of labelled instrument panels. */
+:root {
+  --bg: #EEF1F4;
+  --surface: #FBFCFD;
+  --surface-2: #F3F5F7;
+  --ink: #18212B;
+  --ink-2: #3E4A57;
+  --muted: #5E6B78;
+  --line: #D3DAE2;
+  --grid: #E4E8EC;
+  --axis: #B9C2CC;
+  --copper: #B8561E;
+  --on-copper: #FFFFFF;
+  --coolant: #2A78D6;
+  --whatif: #4A3AA7;
+  --sensor: #18212B;
+  --mem-1: #E9A27A;
+  --mem-2: #D2743D;
+  --mem-3: #A9501F;
+  --mem-4: #6E3011;
+  --critical: #D03B3B;
+  --good: #0CA30C;
+  --warning: #C98500;
+  --f-display: 'Barlow Condensed', 'Arial Narrow', 'Roboto Condensed', sans-serif;
+  --f-body: 'IBM Plex Sans', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --f-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1318; --surface: #151C23; --surface-2: #1B232C; --ink: #E8EDF2; --ink-2: #B7C1CB; --muted: #8592A0;
+    --line: #2A3541; --grid: #202A33; --axis: #3A4653; --copper: #D9692B; --on-copper: #0E1318; --coolant: #3987E5;
+    --whatif: #9085E9; --sensor: #E8EDF2; --mem-1: #8A4219; --mem-2: #B65A25; --mem-3: #E07B40; --mem-4: #F2B48C;
+    --warning: #FAB219; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E1318; --surface: #151C23; --surface-2: #1B232C; --ink: #E8EDF2; --ink-2: #B7C1CB; --muted: #8592A0;
+  --line: #2A3541; --grid: #202A33; --axis: #3A4653; --copper: #D9692B; --on-copper: #0E1318; --coolant: #3987E5;
+  --whatif: #9085E9; --sensor: #E8EDF2; --mem-1: #8A4219; --mem-2: #B65A25; --mem-3: #E07B40; --mem-4: #F2B48C;
+  --warning: #FAB219; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font: 400 16px/1.55 var(--f-body); margin: 0; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: clamp(16px, 3vw, 32px); }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 600; line-height: 1.05; margin: 0; text-wrap: balance; letter-spacing: 0.005em; }
+h1 { font-size: clamp(44px, 7vw, 76px); }
+h2 { font-size: clamp(30px, 4vw, 42px); }
+h3 { font-size: 24px; }
+p { margin: 0; }
+a { color: var(--copper); }
+.eyebrow { font: 500 12px/1.3 var(--f-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--copper); }
+.lede { font-size: 18px; color: var(--ink-2); max-width: 64ch; }
+.muted { color: var(--muted); }
+.mono { font-family: var(--f-mono); }
+.num { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--copper); outline-offset: 2px; }
+
+/* Masthead */
+.masthead { padding-block: 40px 28px; display: grid; gap: 18px; }
+.facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-top: 8px; }
+.fact { padding: 14px 16px 14px 0; display: grid; gap: 2px; min-width: 0; }
+.fact + .fact { padding-left: 16px; border-left: 1px solid var(--line); }
+.fact-label { font: 500 11px/1.3 var(--f-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.fact-value { font: 600 30px/1.1 var(--f-display); }
+.fact-note { font-size: 13px; color: var(--muted); }
+@media (max-width: 760px) {
+  .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fact:nth-child(3) { padding-left: 0; border-left: 0; }
+  .fact:nth-child(n+3) { border-top: 1px solid var(--line); }
+}
+
+/* Section nav */
+.toc { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--bg); border-bottom: 1px solid var(--line); }
+.toc .wrap { display: flex; gap: 4px 18px; flex-wrap: wrap; padding-block: 10px; }
+.toc a { font: 500 13px/1.4 var(--f-mono); color: var(--ink-2); text-decoration: none; letter-spacing: 0.04em; }
+@media (max-width: 760px) { .toc .wrap { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; } .toc a { white-space: nowrap; } }
+.toc a:hover { color: var(--copper); }
+
+/* Sections */
+main { display: grid; gap: 64px; padding-block: 36px 64px; }
+.section { display: grid; gap: 20px; scroll-margin-top: 56px; }
+.section-head { display: grid; gap: 10px; max-width: 78ch; }
+.section-head p { color: var(--ink-2); }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: clamp(14px, 2vw, 22px); min-width: 0; }
+
+/* Controls */
+.controls { display: flex; flex-wrap: wrap; gap: 14px 26px; align-items: flex-end; padding-bottom: 16px; border-bottom: 1px solid var(--line); margin-bottom: 14px; }
+.ctl { display: grid; gap: 6px; min-width: 0; }
+.ctl-label { font: 500 11px/1.2 var(--f-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface-2); }
+.seg button { font: 500 13px/1.1 var(--f-mono); padding: 7px 11px; border: 0; background: transparent; color: var(--ink-2); cursor: pointer; display: grid; gap: 2px; justify-items: center; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button small { font-size: 10.5px; color: var(--muted); }
+.seg button:hover { background: var(--grid); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.seg button[aria-pressed="true"] small { color: var(--surface); opacity: 0.75; }
+.slider-row { display: flex; align-items: center; gap: 10px; }
+input[type="range"] { accent-color: var(--copper); width: 170px; max-width: 100%; }
+output, .readval { font: 500 13px/1.2 var(--f-mono); color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+select { font: 500 13px/1.2 var(--f-mono); color: var(--ink); background: var(--surface-2); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+.btn { font: 600 14px/1 var(--f-body); border-radius: 8px; padding: 10px 16px; cursor: pointer; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); white-space: nowrap; }
+.btn:hover { border-color: var(--ink-2); }
+.btn-primary { background: var(--copper); border-color: var(--copper); color: var(--on-copper); min-width: 150px; }
+.btn-primary:hover { filter: brightness(1.06); border-color: var(--copper); }
+
+/* Legends */
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--ink-2); }
+.key { display: inline-flex; align-items: center; gap: 7px; }
+.key i { display: inline-block; width: 18px; height: 0; border-top: 2px solid currentColor; }
+.key i.dash { border-top-style: dashed; }
+.key i.dot { width: 10px; height: 10px; border: 0; border-radius: 50%; background: currentColor; }
+.key i.dia { width: 9px; height: 9px; border: 0; background: currentColor; transform: rotate(45deg); }
+.key i.bar { width: 12px; height: 12px; border: 0; border-radius: 2px; background: currentColor; }
+.key span { color: var(--ink-2); }
+
+/* Replay console */
+.console-grid { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 22px; }
+@media (max-width: 920px) { .console-grid { grid-template-columns: minmax(0, 1fr); } }
+.plots { position: relative; display: grid; gap: 6px; min-width: 0; }
+.plot-wrap { position: relative; min-width: 0; }
+canvas { display: block; width: 100%; touch-action: pan-y; }
+.cv-main { height: 330px; }
+.cv-strip { height: 46px; }
+.cv-in { height: 86px; }
+.cv-wi { height: 320px; }
+.cv-mem { height: 230px; }
+.cv-memt { height: 120px; }
+.cv-thermo { width: 64px; height: 250px; }
+.loading { position: absolute; inset: 0; display: grid; place-items: center; font: 500 13px var(--f-mono); color: var(--muted); }
+.transport { display: flex; align-items: center; gap: 12px; padding-left: 52px; padding-block: 4px 10px; flex-wrap: wrap; }
+.transport input[type="range"] { flex: 1 1 200px; width: auto; }
+@media (max-width: 560px) { .transport { padding-left: 0; } }
+.mini-title { font: 500 11px/1.2 var(--f-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); padding-top: 6px; border-top: 1px solid var(--grid); }
+.tooltip { position: absolute; z-index: 5; pointer-events: none; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px; box-shadow: 0 6px 22px rgba(10, 20, 30, 0.14); min-width: 170px; display: grid; gap: 3px; font-size: 12.5px; }
+.tooltip .tt-head { font: 500 11px/1.3 var(--f-mono); color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 2px; }
+.tooltip .tt-row { display: grid; grid-template-columns: 14px auto 1fr; align-items: center; gap: 7px; }
+.tooltip .tt-row i { display: inline-block; width: 14px; border-top: 2px solid currentColor; }
+.tooltip .tt-row b { font: 600 13px/1.2 var(--f-mono); color: var(--ink); font-variant-numeric: tabular-nums; }
+.tooltip .tt-row span { color: var(--muted); }
+
+.readout { display: grid; gap: 14px; align-content: start; border-left: 1px solid var(--line); padding-left: 20px; }
+@media (max-width: 920px) { .readout { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 16px; } }
+.ro-time { font: 500 13px/1.3 var(--f-mono); color: var(--ink-2); }
+.ro-big { display: grid; gap: 0; }
+.ro-big .lbl { font: 500 11px/1.2 var(--f-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 7px; }
+.ro-big .lbl i { display: inline-block; width: 16px; border-top: 2px solid currentColor; }
+.ro-big .val { font: 600 40px/1.05 var(--f-display); font-variant-numeric: tabular-nums; }
+.thermo-box { display: flex; gap: 14px; align-items: flex-start; }
+.ro-stack { display: grid; gap: 10px; }
+.lamp-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.lamp { width: 16px; height: 16px; border-radius: 50%; background: var(--axis); flex: none; }
+.lamp.on { background: var(--critical); box-shadow: 0 0 0 4px color-mix(in srgb, var(--critical) 25%, transparent), 0 0 18px var(--critical); }
+.lamp-text { display: grid; gap: 1px; }
+.lamp-text b { font: 600 14px/1.2 var(--f-body); }
+.lamp-text span { font-size: 12.5px; color: var(--muted); }
+.ro-rmse { font-size: 13px; color: var(--ink-2); display: grid; gap: 2px; }
+.ro-rmse b { font: 600 15px var(--f-mono); color: var(--ink); }
+.source-note { font-size: 12.5px; color: var(--muted); }
+.badge { display: inline-flex; align-items: center; gap: 6px; font: 500 12px/1.3 var(--f-mono); color: var(--ink-2); padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-2); }
+.badge .dotc { width: 8px; height: 8px; border-radius: 50%; background: var(--axis); }
+.badge.ok .dotc { background: var(--good); }
+.badge.bad .dotc { background: var(--critical); }
+
+/* What-if */
+.wi-grid { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 26px; }
+@media (max-width: 920px) { .wi-grid { grid-template-columns: minmax(0, 1fr); } }
+.wi-controls { display: grid; gap: 18px; align-content: start; }
+.wi-controls input[type="range"] { width: 100%; }
+.wi-status { font: 500 12.5px/1.4 var(--f-mono); color: var(--muted); min-height: 1.4em; }
+.chip { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-2); }
+.chip.warn { border-color: color-mix(in srgb, var(--warning) 60%, var(--line)); }
+.chip .ic { font-weight: 700; color: var(--warning); }
+.tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+.tiles.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+@media (max-width: 760px) { .tiles, .tiles.five { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.tile { border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; display: grid; gap: 4px; background: var(--surface-2); min-width: 0; }
+.tile .t-label { font: 500 11px/1.25 var(--f-mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.tile .t-value { font: 600 26px/1.1 var(--f-display); }
+#wiTiles .t-value { font-size: 23px; }
+.tile .t-note { font-size: 12.5px; color: var(--muted); }
+
+/* Thermal memory */
+.mem-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: 18px; }
+@media (max-width: 920px) { .mem-grid { grid-template-columns: minmax(0, 1fr); } }
+.toggles { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.toggle { font: 500 12.5px/1.2 var(--f-body); display: inline-flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink-2); cursor: pointer; }
+.toggle i { display: inline-block; width: 16px; border-top: 2px solid currentColor; }
+.toggle b { font: 500 12px var(--f-mono); color: var(--ink); }
+.toggle[aria-pressed="false"] { opacity: 0.45; }
+.toggle[aria-pressed="false"] i { border-top-style: dotted; }
+.card-title { font: 600 15px/1.3 var(--f-body); margin-bottom: 4px; }
+.card-sub { font-size: 13.5px; color: var(--muted); margin-bottom: 12px; }
+
+/* SVG charts */
+svg.chart { display: block; width: 100%; overflow: visible; }
+svg.chart text { font-family: var(--f-mono); font-size: 11.5px; fill: var(--muted); }
+svg.chart text.lbl { font-family: var(--f-body); font-size: 13px; fill: var(--ink-2); }
+svg.chart text.lbl-strong { font-family: var(--f-body); font-size: 13px; font-weight: 600; fill: var(--ink); }
+svg.chart text.val { fill: var(--ink); font-size: 12px; }
+svg.chart .grid { stroke: var(--grid); stroke-width: 1; }
+svg.chart .axis { stroke: var(--axis); stroke-width: 1; }
+svg.chart .hit { fill: transparent; cursor: default; }
+svg.chart .hit:hover { fill: var(--grid); fill-opacity: 0.5; }
+.chart-wrap { position: relative; min-width: 0; }
+.two-col { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 18px; }
+@media (max-width: 920px) { .two-col { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 1180px) { #models .two-col { grid-template-columns: minmax(0, 1fr); } }
+.callout { display: grid; gap: 10px; align-content: start; }
+.callout p { color: var(--ink-2); font-size: 15px; }
+.callout .big { font: 600 44px/1 var(--f-display); color: var(--ink); }
+.tabs { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
+.tabs button { font: 500 13px/1.1 var(--f-body); padding: 8px 12px; border: 0; background: var(--surface-2); color: var(--ink-2); cursor: pointer; }
+.tabs button + button { border-left: 1px solid var(--line); }
+.tabs button[aria-selected="true"] { background: var(--ink); color: var(--surface); }
+
+/* Method */
+.steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+@media (max-width: 920px) { .steps { grid-template-columns: minmax(0, 1fr); } }
+.step { padding: 16px 16px 18px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.step + .step { border-left: 1px solid var(--line); }
+@media (max-width: 920px) { .step + .step { border-left: 0; border-top: 1px solid var(--line); } }
+.step .n { font: 500 12px var(--f-mono); color: var(--copper); letter-spacing: 0.08em; }
+.step h3 { font-size: 22px; }
+.step p { font-size: 14px; color: var(--ink-2); }
+.step .count { font: 600 15px var(--f-mono); color: var(--ink); }
+.rules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+@media (max-width: 760px) { .rules { grid-template-columns: minmax(0, 1fr); } }
+.rules ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 8px; color: var(--ink-2); font-size: 15px; }
+.rules li::marker { color: var(--copper); }
+footer { border-top: 1px solid var(--line); padding-block: 22px 40px; font-size: 13px; color: var(--muted); display: grid; gap: 6px; }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
+</style>
+
+<header class="wrap masthead">
+  <p class="eyebrow">UCS321 AI for Engineers · MST statement 6 · TIET Patiala</p>
+  <h1>Motor Winding Virtual Sensor</h1>
+  <p class="lede">The copper winding of an electric motor wears out fast when it runs hot, but a sensor buried inside it is costly and fragile. We trained a model that estimates the winding temperature of a 50 kW motor from eight signals its controller already measures. Replay it below on six test sessions it never saw while it was being built.</p>
+  <div class="facts" id="facts"></div>
+</header>
+
+<nav class="toc" aria-label="Sections">
+  <div class="wrap">
+    <a href="#replay">Replay</a><a href="#whatif">What-if lab</a><a href="#memory">Thermal memory</a><a href="#models">Models</a><a href="#drivers">What matters</a><a href="#safety">Safety alarm</a><a href="#method">Method</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <section class="section" id="replay">
+    <div class="section-head">
+      <p class="eyebrow">Live replay · Phase 5 test sessions</p>
+      <h2>Watch the estimate follow the real sensor</h2>
+      <p>Pick a test session and press play. The copper line is the model's estimate. The plain line is the real sensor, which the model never sees. The alarm fires when the estimate plus a safety margin reaches <span id="tHotText">104.8</span> °C, the hottest 10 % of the training data.</p>
+    </div>
+    <div class="card">
+      <div class="controls">
+        <div class="ctl"><span class="ctl-label" id="sessLabel">Test session · hours</span><div class="seg" id="sessSeg" role="group" aria-labelledby="sessLabel"></div></div>
+        <div class="ctl"><span class="ctl-label" id="modelLabel">Model</span><div class="seg" id="modelSeg" role="group" aria-labelledby="modelLabel"></div></div>
+        <div class="ctl"><label class="ctl-label" for="kRange">Safety margin (k × σ)</label><div class="slider-row"><input type="range" id="kRange" min="0" max="3" step="0.1" value="1"><output id="kOut" for="kRange"></output></div></div>
+      </div>
+      <div class="console-grid">
+        <div class="plots" id="replayPlots">
+          <div class="legend" id="replayLegend"></div>
+          <div class="plot-wrap"><canvas id="mainCv" class="cv-main" aria-label="Winding temperature over the session: real sensor, model estimate and coolant"></canvas><div class="loading" id="loadMsg">Unpacking 141,024 test rows…</div></div>
+          <div class="plot-wrap"><canvas id="stripCv" class="cv-strip" aria-label="When the winding was really hot, and when the alarm was on"></canvas></div>
+          <div class="transport">
+            <button class="btn btn-primary" id="playBtn" type="button">▶ Replay from start</button>
+            <input type="range" id="scrub" min="0" max="1000" value="1000" aria-label="Position in the session">
+            <label class="ctl-label" for="speedSel">Speed</label>
+            <select id="speedSel"><option value="1">1 min per s</option><option value="5" selected>5 min per s</option><option value="15">15 min per s</option></select>
+          </div>
+          <p class="mini-title">Controller signals the model reads (3 of 8)</p>
+          <div class="plot-wrap"><canvas id="inCv0" class="cv-in" aria-label="Current magnitude"></canvas></div>
+          <div class="plot-wrap"><canvas id="inCv1" class="cv-in" aria-label="Motor speed"></canvas></div>
+          <div class="plot-wrap"><canvas id="inCv2" class="cv-in" aria-label="Torque"></canvas></div>
+          <div class="tooltip" id="replayTip" hidden></div>
+        </div>
+        <aside class="readout" aria-label="Readout at the playhead">
+          <p class="ro-time num" id="roTime">–</p>
+          <div class="thermo-box">
+            <canvas id="thermoCv" class="cv-thermo" aria-hidden="true"></canvas>
+            <div class="ro-stack">
+              <div class="ro-big"><span class="lbl" style="color:var(--sensor)"><i></i><span class="muted">Real sensor</span></span><span class="val" id="roSensor">–</span></div>
+              <div class="ro-big"><span class="lbl" style="color:var(--copper)"><i></i><span class="muted" id="roEstLabel">Estimate</span></span><span class="val" id="roEst">–</span></div>
+              <div class="ro-big"><span class="lbl"><span class="muted">Error</span></span><span class="val" id="roErr" style="font-size:28px">–</span></div>
+            </div>
+          </div>
+          <div class="lamp-row"><span class="lamp" id="lamp"></span><span class="lamp-text"><b id="lampState">No alarm</b><span id="lampVerdict" role="status">–</span></span></div>
+          <div class="ro-rmse"><span>RMSE so far</span><b id="roRmse">–</b><span id="roRmseAll">–</span></div>
+          <p class="source-note" id="roSource">Estimates are the saved Phase 5 predictions.</p>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="whatif">
+    <div class="section-head">
+      <p class="eyebrow">What-if lab · the trained model running in this page</p>
+      <h2>Change the operating conditions</h2>
+      <p>This runs our saved MLP (or Ridge) inside your browser: it rebuilds all 45 features from the raw signals, then predicts. Raise the coolant temperature or scale the load, and see how the estimate responds. No sensor exists for an invented scenario, so this shows what the model believes, not a measurement.</p>
+    </div>
+    <div class="card wi-grid">
+      <div class="wi-controls">
+        <div class="ctl"><label class="ctl-label" for="wiSess">Session</label><select id="wiSess"></select></div>
+        <div class="ctl"><span class="ctl-label" id="wiModelLabel">Model</span><div class="seg" id="wiModelSeg" role="group" aria-labelledby="wiModelLabel"></div></div>
+        <div class="ctl"><label class="ctl-label" for="wiCool">Coolant temperature change</label><div class="slider-row"><input type="range" id="wiCool" min="-20" max="20" step="1" value="10"><output id="wiCoolOut" for="wiCool"></output></div></div>
+        <div class="ctl"><label class="ctl-label" for="wiLoad">Load (current and torque) scale</label><div class="slider-row"><input type="range" id="wiLoad" min="0.6" max="1.3" step="0.05" value="1"><output id="wiLoadOut" for="wiLoad"></output></div></div>
+        <div><button class="btn" id="wiReset" type="button">Reset to the recorded run</button></div>
+        <p class="wi-status" id="wiStatus">Waiting for the data…</p>
+        <div id="wiRange"></div>
+      </div>
+      <div class="plots" id="wiPlots">
+        <div class="legend" id="wiLegend"></div>
+        <div class="plot-wrap"><canvas id="wiCv" class="cv-wi" aria-label="Estimated winding temperature with the recorded and the what-if inputs"></canvas></div>
+        <div class="tiles" id="wiTiles"></div>
+        <div class="tooltip" id="wiTip" hidden></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="memory">
+    <div class="section-head">
+      <p class="eyebrow">Thermal memory · Phase 3 features, Phase 6 memory curve</p>
+      <h2>Why the model needs memory</h2>
+      <p>Copper heats up slowly. The temperature now depends on how hard the motor worked over the last minutes, not only on the current right now. So we give the model running averages of each signal (EWMA, an exponentially weighted moving average) over 1, 5, 15 and 45 minutes. The longer averages look much more like the temperature curve.</p>
+    </div>
+    <div class="mem-grid">
+      <div class="card">
+        <p class="card-title" id="memTitle">Current and its running averages</p>
+        <p class="card-sub">Tap a line to hide or show it. r is its correlation with the winding temperature in this session.</p>
+        <div class="toggles" id="memToggles"></div>
+        <div class="plots" id="memPlots">
+          <div class="plot-wrap"><canvas id="memCv" class="cv-mem" aria-label="Current magnitude and its EWMAs"></canvas></div>
+          <div class="plot-wrap"><canvas id="memTCv" class="cv-memt" aria-label="Winding temperature"></canvas></div>
+          <div class="tooltip" id="memTip" hidden></div>
+        </div>
+      </div>
+      <div class="card">
+        <p class="card-title">How much memory is enough?</p>
+        <p class="card-sub">MLP cross-validation error as we add longer averages (Phase 6). Bars show ± 1 std over the 5 folds.</p>
+        <div class="chart-wrap" id="memCurveWrap"><svg class="chart" id="memCurve" role="img" aria-label="Cross-validation RMSE against the longest memory span"></svg><div class="tooltip" id="memCurveTip" hidden></div></div>
+        <p class="card-sub" id="memCurveNote" style="margin-top:12px"></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="models">
+    <div class="section-head">
+      <p class="eyebrow">Phase 4 cross-validation · Phase 5 test</p>
+      <h2>Nine models, judged on sessions they never saw</h2>
+      <p>Every model got the same 118,980 training rows and the same five folds. Each fold holds out whole sessions, so every score is on unseen sessions. The three finalists were then tested once on the six test sessions.</p>
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <div class="controls" style="padding-bottom:12px;margin-bottom:12px">
+          <div class="legend" id="lbLegend"></div>
+          <div class="seg" id="lbZoom" role="group" aria-label="Zoom"></div>
+        </div>
+        <div class="chart-wrap" id="lbWrap"><svg class="chart" id="lbSvg" role="img" aria-label="Cross-validation and test RMSE per model"></svg><div class="tooltip" id="lbTip" hidden></div></div>
+      </div>
+      <div class="card callout" id="lbCallout"></div>
+    </div>
+  </section>
+
+  <section class="section" id="drivers">
+    <div class="section-head">
+      <p class="eyebrow">Phase 5 importance · Phase 6 ablation</p>
+      <h2>What the model relies on</h2>
+      <p>Two ways to ask the same question. Ablation retrains the MLP without a group of features and measures the cross-validation error. Permutation importance shuffles one group of signals in the test data and measures how much worse the final model gets.</p>
+    </div>
+    <div class="card">
+      <div class="tabs" role="tablist" aria-label="Analysis">
+        <button role="tab" id="tabAbl" aria-selected="true" aria-controls="drvWrap" type="button">Remove a feature group (ablation)</button>
+        <button role="tab" id="tabImp" aria-selected="false" aria-controls="drvWrap" type="button">Shuffle a signal group (importance)</button>
+      </div>
+      <p class="card-sub" id="drvSub"></p>
+      <div class="chart-wrap" id="drvWrap" role="tabpanel"><svg class="chart" id="drvSvg" role="img" aria-label="Feature group analysis"></svg><div class="tooltip" id="drvTip" hidden></div></div>
+    </div>
+  </section>
+
+  <section class="section" id="safety">
+    <div class="section-head">
+      <p class="eyebrow">Phase 6 · safety alarm on all six test sessions</p>
+      <h2>Trade missed overheating for false alarms</h2>
+      <p>The MLP reads too low when the winding is hot. A safety margin makes the alarm fire earlier: alarm when the estimate + k × σ reaches the hot level, where σ = <span id="sigmaText">4.96</span> °C is the MLP's error spread in cross-validation (training data only). A bigger k catches more hot moments and raises more false alarms.</p>
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <div class="controls" style="padding-bottom:12px;margin-bottom:12px">
+          <div class="ctl"><label class="ctl-label" for="kRange2">Safety margin k</label><div class="slider-row"><input type="range" id="kRange2" min="0" max="3" step="0.1" value="1"><output id="kOut2" for="kRange2"></output></div></div>
+          <span class="badge" id="safetyBadge"><span class="dotc"></span><span>Checking against safety_alarm.csv…</span></span>
+        </div>
+        <div class="chart-wrap" id="sfWrap"><svg class="chart" id="sfSvg" role="img" aria-label="Hot moments caught against false alarms, for each safety margin"></svg><div class="tooltip" id="sfTip" hidden></div></div>
+      </div>
+      <div class="card callout">
+        <p class="card-title">At the chosen margin</p>
+        <div class="tiles" id="sfTiles" style="grid-template-columns:repeat(2,minmax(0,1fr));margin-top:0"></div>
+        <p class="card-sub" id="sfNote" style="margin:0"></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="method">
+    <div class="section-head">
+      <p class="eyebrow">Method · Phases 0 to 7</p>
+      <h2>How the estimate is made</h2>
+      <p>Every number on this page is read from the project's result files, or computed live from the saved test predictions and models.</p>
+    </div>
+    <div class="steps" id="steps"></div>
+    <div class="rules">
+      <div class="card"><p class="card-title">Rules that keep the test fair</p><ul id="rulesList"></ul></div>
+      <div class="card"><p class="card-title">Limits</p><ul id="limitsList"></ul></div>
+    </div>
+    <div class="card" style="display:grid;gap:10px">
+      <p class="card-title">Is the model in this page the real one?</p>
+      <p class="muted" id="checkText">Checking: the page runs the saved MLP and Ridge on all six test sessions and compares the result with the saved Phase 5 predictions…</p>
+      <div><span class="badge" id="checkBadge"><span class="dotc"></span><span>Running</span></span></div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap">
+  <p id="builtNote"></p>
+  <p>Data: "Electric Motor Temperature" by Wilhelm Kirchgässner, Paderborn University (Kaggle: wkirgsn/electric-motor-temperature). GE Power Systems is the assignment's scenario; this is a student project, not a GE product.</p>
+</footer>
+
+<script id="payload" type="application/json">__PAYLOAD__</script>
+<script id="blob" type="text/plain">__BLOB__</script>
+<script>
+'use strict';
+const P = JSON.parse(document.getElementById('payload').textContent);
+const N = P.n;
+const SESS = P.sessions;
+const SIGMA = P.safety.sigma;
+const THOT = P.safety.t_hot;
+const RATE = 120;              // rows per minute (2 Hz)
+const Y_DOMAIN = [10, 150];    // fixed °C scale for every session, so sessions compare fairly
+const M = { l: 52, r: 14 };    // shared plot margins, so all replay charts line up in time
+const MODEL_KEYS = ['m6', 'm3', 'm5'];
+const MODEL_LABEL = { m6: 'MLP (final)', m3: 'Ridge', m5: 'LightGBM' };
+const MODEL_FILE_NAME = { m6: 'M6 MLP (64-32)', m3: 'M3 Ridge', m5: 'M5 LightGBM', b1: 'B1 coolant + offset', b0: 'B0 mean' };
+
+let D = null;                  // decoded columns (Float32Array for signals, Float64Array for predictions)
+const state = { si: Math.max(0, SESS.findIndex(s => s.id === 66)), model: 'm6', head: 0, play: false, speed: 5, k: 1, hover: null };
+
+// ---------------------------------------------------------------- small helpers
+const $ = id => document.getElementById(id);
+function fmt(x, d = 2) {
+  if (x === null || x === undefined || !Number.isFinite(x)) return '–';
+  const s = Math.abs(x).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  return (x < 0 && Number(s.replace(/,/g, '')) !== 0 ? '−' : '') + s;
+}
+function fmtSigned(x, d = 1) {
+  const s = Math.abs(x).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  if (Number(s.replace(/,/g, '')) === 0) return '±' + s;
+  return (x > 0 ? '+' : '−') + s;
+}
+function fmtDur(min) {
+  const total = Math.round(min);
+  const h = Math.floor(total / 60), m = total % 60;
+  return h ? `${h} h ${String(m).padStart(2, '0')} min` : `${m} min`;
+}
+function el(tag, props = {}, parent) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'text') e.textContent = v;
+    else if (k === 'class') e.className = v;
+    else if (k === 'style') e.style.cssText = v;
+    else e.setAttribute(k, v);
+  }
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const SVGNS = 'http://www.w3.org/2000/svg';
+function svgEl(tag, attrs = {}, parent) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === 'text') e.textContent = v; else e.setAttribute(k, v);
+  }
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function niceStep(range, count) {
+  const raw = range / Math.max(1, count);
+  const p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const f = raw / p;
+  return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+}
+function ticks(lo, hi, count) {
+  const step = niceStep(hi - lo, count);
+  const out = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi + step * 1e-9; v += step) out.push(Math.round(v * 1e6) / 1e6);
+  return out;
+}
+const tick = () => new Promise(r => setTimeout(r, 0));
+let C = {};
+function readColors() {
+  const cs = getComputedStyle(document.documentElement);
+  for (const k of ['ink', 'ink-2', 'muted', 'line', 'grid', 'axis', 'surface', 'surface-2', 'copper', 'coolant', 'whatif', 'sensor', 'critical', 'good', 'mem-1', 'mem-2', 'mem-3', 'mem-4']) {
+    C[k] = cs.getPropertyValue('--' + k).trim();
+  }
+  C.fMono = cs.getPropertyValue('--f-mono').trim();
+  C.fBody = cs.getPropertyValue('--f-body').trim();
+}
+
+// ---------------------------------------------------------------- tooltips (built with textContent only)
+function showTip(tip, container, px, py, head, rows) {
+  tip.replaceChildren();
+  el('div', { class: 'tt-head', text: head }, tip);
+  for (const r of rows) {
+    const row = el('div', { class: 'tt-row' }, tip);
+    const key = el('i', {}, row);
+    if (r.color) key.style.color = r.color; else key.style.visibility = 'hidden';
+    el('b', { text: r.value }, row);
+    el('span', { text: r.label }, row);
+  }
+  tip.hidden = false;
+  const cw = container.clientWidth, tw = tip.offsetWidth, th = tip.offsetHeight;
+  let x = px + 16;
+  if (x + tw > cw) x = px - tw - 16;
+  if (x < 0) x = Math.max(0, cw - tw);
+  let y = Math.max(0, py - th / 2);
+  if (y + th > container.clientHeight) y = Math.max(0, container.clientHeight - th);
+  tip.style.left = x + 'px';
+  tip.style.top = y + 'px';
+}
+
+// ---------------------------------------------------------------- canvas plumbing
+function prepCanvas(cv) {
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.max(10, Math.round(cv.clientWidth));
+  const h = Math.max(10, Math.round(cv.clientHeight));
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) {
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(h * dpr);
+  }
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  return { ctx, w, h };
+}
+// min/max envelope per pixel bucket, so 40,000-row sessions draw fast without losing spikes
+const envCache = new Map();
+function envelope(key, arr, buckets) {
+  const ck = key + '|' + buckets;
+  const hit = envCache.get(ck);
+  if (hit) return hit;
+  if (envCache.size > 300) envCache.clear();
+  const n = arr.length;
+  const idx = [], val = [];
+  if (n <= buckets * 2) {
+    for (let i = 0; i < n; i++) { idx.push(i); val.push(arr[i]); }
+  } else {
+    const size = n / buckets;
+    for (let b = 0; b < buckets; b++) {
+      const i0 = Math.floor(b * size), i1 = Math.min(n, Math.floor((b + 1) * size));
+      let mn = Infinity, mx = -Infinity, imn = i0, imx = i0;
+      for (let i = i0; i < i1; i++) {
+        const v = arr[i];
+        if (v < mn) { mn = v; imn = i; }
+        if (v > mx) { mx = v; imx = i; }
+      }
+      if (imn < imx) { idx.push(imn, imx); val.push(mn, mx); }
+      else if (imn > imx) { idx.push(imx, imn); val.push(mx, mn); }
+      else { idx.push(imn); val.push(mn); }
+    }
+  }
+  const e = { idx: Int32Array.from(idx), val: Float64Array.from(val) };
+  envCache.set(ck, e);
+  return e;
+}
+function strokeSeries(ctx, env, arr, sx, sy, upto, style) {
+  ctx.save();
+  ctx.globalAlpha = style.alpha ?? 1;
+  ctx.strokeStyle = style.color;
+  ctx.lineWidth = style.width ?? 2;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  let started = false, lastIdx = -1;
+  for (let j = 0; j < env.idx.length; j++) {
+    const i = env.idx[j];
+    if (i > upto) break;
+    const x = sx(i), y = sy(env.val[j]);
+    if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+    lastIdx = i;
+  }
+  if (started && upto > lastIdx && upto < arr.length) ctx.lineTo(sx(upto), sy(arr[upto]));
+  ctx.stroke();
+  ctx.restore();
+}
+function drawYAxis(ctx, w, y0, y1, sy, tickVals, unit, fmtTick) {
+  ctx.save();
+  ctx.font = '11px ' + C.fMono;
+  ctx.fillStyle = C.muted;
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.strokeStyle = C.grid;
+  ctx.lineWidth = 1;
+  for (const v of tickVals) {
+    const y = Math.round(sy(v)) + 0.5;
+    if (y < y0 - 1 || y > y1 + 1) continue;
+    ctx.beginPath(); ctx.moveTo(M.l, y); ctx.lineTo(w - M.r, y); ctx.stroke();
+    ctx.fillText(fmtTick ? fmtTick(v) : String(v), M.l - 8, y);
+  }
+  if (unit) { ctx.textAlign = 'left'; ctx.textBaseline = 'top'; ctx.fillText(unit, 4, 0); }
+  ctx.restore();
+}
+function drawXGrid(ctx, rows, sx, y0, y1, labels, h) {
+  const minutes = rows / RATE;
+  const step = minutes > 240 ? 60 : minutes > 90 ? 30 : 15;
+  ctx.save();
+  ctx.strokeStyle = C.grid;
+  ctx.lineWidth = 1;
+  ctx.font = '11px ' + C.fMono;
+  ctx.fillStyle = C.muted;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  for (let m = 0; m <= minutes; m += step) {
+    const x = Math.round(sx(m * RATE)) + 0.5;
+    ctx.beginPath(); ctx.moveTo(x, y0); ctx.lineTo(x, y1); ctx.stroke();
+    if (labels) ctx.fillText(m === 0 ? '0 min' : String(m), x, y1 + 6);
+  }
+  ctx.restore();
+}
+function hLine(ctx, w, y, color, dash, width = 1, alpha = 1) {
+  ctx.save();
+  ctx.strokeStyle = color; ctx.lineWidth = width; ctx.globalAlpha = alpha;
+  ctx.setLineDash(dash || []);
+  ctx.beginPath(); ctx.moveTo(M.l, Math.round(y) + 0.5); ctx.lineTo(w - M.r, Math.round(y) + 0.5); ctx.stroke();
+  ctx.restore();
+}
+function dot(ctx, x, y, color) {
+  ctx.save();
+  ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fillStyle = C.surface; ctx.fill();
+  ctx.beginPath(); ctx.arc(x, y, 4.5, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
+  ctx.restore();
+}
+function canvasText(ctx, text, x, y, align, color, base = 'bottom', backing = true) {
+  ctx.save();
+  ctx.font = '11.5px ' + C.fBody;
+  ctx.textAlign = align; ctx.textBaseline = base;
+  if (backing) {  // a surface-coloured plate keeps the label readable over the data lines
+    const tw = ctx.measureText(text).width, th = 15;
+    const left = align === 'right' ? x - tw : align === 'center' ? x - tw / 2 : x;
+    const top = base === 'bottom' ? y - th + 2 : base === 'top' ? y - 2 : y - th / 2;
+    ctx.fillStyle = C.surface; ctx.globalAlpha = 0.88;
+    ctx.fillRect(left - 4, top, tw + 8, th);
+    ctx.globalAlpha = 1;
+  }
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+// ---------------------------------------------------------------- decode the embedded test data
+async function decode() {
+  const b64 = document.getElementById('blob').textContent.trim();
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  const buf = new Uint8Array(await new Response(stream).arrayBuffer());
+  const out = {};
+  for (const L of P.layout) {
+    if (L.kind === 'f32shuf') {
+      const raw = new Uint8Array(N * 4);
+      for (let b = 0; b < 4; b++) {
+        const base = L.offset + b * N;
+        for (let i = 0; i < N; i++) raw[i * 4 + b] = buf[base + i];
+      }
+      out[L.name] = new Float32Array(raw.buffer);
+    } else {
+      const dv = new DataView(buf.buffer, buf.byteOffset + L.offset, N * 4);
+      const col = new Float64Array(N);
+      let acc = 0;
+      for (let i = 0; i < N; i++) { acc += dv.getInt32(i * 4, true); col[i] = acc / 1000; }
+      out[L.name] = col;
+    }
+  }
+  return out;
+}
+function col(name, si) {
+  const s = SESS[si];
+  return D[name].subarray(s.start, s.start + s.rows);
+}
+
+// ---------------------------------------------------------------- the model, rebuilt in JavaScript
+// Same maths as src/features.py: float64 arithmetic, every feature stored as float32 (Math.fround).
+const FEATURES = P.features;
+const NF = FEATURES.length;
+function prepModel(m) {
+  m.meanF = Float64Array.from(m.mean);
+  m.scaleF = Float64Array.from(m.scale);
+  if (m.layers) for (const L of m.layers) { L.Wf = Float64Array.from(L.W, Math.fround); L.bf = Float64Array.from(L.b, Math.fround); }
+  if (m.coef) { m.coefF = Float64Array.from(m.coef, Math.fround); m.interceptF = Math.fround(m.intercept); }
+}
+prepModel(P.mlp);
+prepModel(P.ridge);
+
+function ewma(x, span) {
+  const w = 1 - 2 / (span + 1);
+  const out = new Float64Array(x.length);
+  let num = 0, den = 0;
+  for (let i = 0; i < x.length; i++) {
+    num = x[i] + w * num;
+    den = 1 + w * den;
+    out[i] = Math.fround(num / den);
+  }
+  return out;
+}
+function sessionInputs(si, mods) {
+  const f = Math.fround;
+  const s = SESS[si];
+  const cols = {};
+  for (const c of P.inputs) {
+    const src = D[c], out = new Float64Array(s.rows);
+    for (let i = 0; i < s.rows; i++) out[i] = src[s.start + i];
+    cols[c] = out;
+  }
+  if (mods && mods.coolant) for (let i = 0; i < s.rows; i++) cols.coolant[i] = f(cols.coolant[i] + mods.coolant);
+  if (mods && mods.load !== 1) for (const c of ['i_d', 'i_q', 'torque']) for (let i = 0; i < s.rows; i++) cols[c][i] = f(cols[c][i] * mods.load);
+  return cols;
+}
+function addFeatures(cols, n) {
+  const f = Math.fround;
+  const i_s = new Float64Array(n), u_s = new Float64Array(n), i_s_sq = new Float64Array(n), p_el = new Float64Array(n), p_mech = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const id = cols.i_d[i], iq = cols.i_q[i], ud = cols.u_d[i], uq = cols.u_q[i];
+    const is64 = Math.sqrt(id * id + iq * iq);
+    i_s[i] = f(is64);
+    i_s_sq[i] = f(is64 * is64);
+    u_s[i] = f(Math.sqrt(ud * ud + uq * uq));
+    p_el[i] = f(1.5 * (ud * id + uq * iq));
+    p_mech[i] = f(cols.torque[i] * cols.motor_speed[i] * 2 * Math.PI / 60);
+  }
+  Object.assign(cols, { i_s, u_s, i_s_sq, p_el, p_mech });
+  for (const name of FEATURES) {
+    if (!name.includes('_ewma_')) continue;
+    const cut = name.lastIndexOf('_ewma_');
+    cols[name] = ewma(cols[name.slice(0, cut)], Number(name.slice(cut + 6)));
+  }
+  return cols;
+}
+async function predict(kind, si, mods, job) {
+  const n = SESS[si].rows;
+  const cols = addFeatures(sessionInputs(si, mods), n);
+  const m = kind === 'm6' ? P.mlp : P.ridge;
+  const X = new Float64Array(n * NF);
+  for (let j = 0; j < NF; j++) {
+    const c = cols[FEATURES[j]], mu = m.meanF[j], sd = m.scaleF[j];
+    for (let i = 0; i < n; i++) X[i * NF + j] = (c[i] - mu) / sd;
+  }
+  const out = new Float64Array(n);
+  const CHUNK = 3000;
+  if (kind === 'm3') {
+    for (let i = 0; i < n; i++) {
+      let s = m.interceptF;
+      for (let j = 0; j < NF; j++) s += X[i * NF + j] * m.coefF[j];
+      out[i] = s;
+    }
+  } else {
+    const layers = m.layers;
+    const bufs = layers.map(L => new Float64Array(L.out));
+    for (let r0 = 0; r0 < n; r0 += CHUNK) {
+      const r1 = Math.min(n, r0 + CHUNK);
+      for (let r = r0; r < r1; r++) {
+        let input = X.subarray(r * NF, r * NF + NF);
+        for (let k = 0; k < layers.length; k++) {
+          const L = layers[k], h = bufs[k], W = L.Wf, nOut = L.out;
+          h.set(L.bf);
+          for (let i = 0; i < L.in; i++) {
+            const z = input[i];
+            if (z === 0) continue;
+            const off = i * nOut;
+            for (let o = 0; o < nOut; o++) h[o] += z * W[off + o];
+          }
+          if (k < layers.length - 1) for (let o = 0; o < nOut; o++) if (h[o] < 0) h[o] = 0;
+          input = h;
+        }
+        out[r] = input[0];
+      }
+      if (job && job.cancelled) return null;
+      await tick();
+    }
+  }
+  return { pred: out, cols };
+}
+const baseCache = {};
+async function baseline(kind, si) {
+  const key = kind + ':' + si;
+  if (!baseCache[key]) baseCache[key] = predict(kind, si, null, null);
+  return baseCache[key];
+}
+
+// ---------------------------------------------------------------- derived per-session series
+const derived = {};
+function currentMag(si) {
+  const key = 'is:' + si;
+  if (!derived[key]) {
+    const id = col('i_d', si), iq = col('i_q', si), out = new Float64Array(id.length);
+    for (let i = 0; i < id.length; i++) out[i] = Math.sqrt(id[i] * id[i] + iq[i] * iq[i]);
+    derived[key] = out;
+  }
+  return derived[key];
+}
+function cumSq(si, model) {
+  const key = 'cum:' + si + ':' + model;
+  if (!derived[key]) {
+    const a = col('stator_winding', si), p = col(model, si), out = new Float64Array(a.length + 1);
+    for (let i = 0; i < a.length; i++) { const e = p[i] - a[i]; out[i + 1] = out[i] + e * e; }
+    derived[key] = out;
+  }
+  return derived[key];
+}
+let GLOBAL = null;  // fixed input-chart scales across all test sessions
+function globalRanges() {
+  let isMax = 0, spMin = Infinity, spMax = -Infinity, tqMin = Infinity, tqMax = -Infinity;
+  for (let i = 0; i < N; i++) {
+    const v = Math.sqrt(D.i_d[i] * D.i_d[i] + D.i_q[i] * D.i_q[i]);
+    if (v > isMax) isMax = v;
+    const sp = D.motor_speed[i]; if (sp < spMin) spMin = sp; if (sp > spMax) spMax = sp;
+    const tq = D.torque[i]; if (tq < tqMin) tqMin = tq; if (tq > tqMax) tqMax = tq;
+  }
+  return { is: [0, isMax * 1.05], sp: [Math.min(0, spMin), spMax * 1.05], tq: [tqMin * 1.08, tqMax * 1.08] };
+}
+
+// ---------------------------------------------------------------- masthead facts
+function testRow(name) { return P.test.find(r => r.model === name); }
+function renderFacts() {
+  const box = $('facts');
+  const mlp = testRow(MODEL_FILE_NAME.m6), ridge = testRow(MODEL_FILE_NAME.m3), b1 = testRow(MODEL_FILE_NAME.b1);
+  const facts = [
+    ['Final model, test error', fmt(mlp.rmse) + ' °C', 'RMSE of the MLP, chosen before the test'],
+    ['Best test error', fmt(ridge.rmse) + ' °C', 'Ridge regression'],
+    ['Coolant + offset baseline', fmt(b1.rmse) + ' °C', 'the simple rule we had to beat'],
+    ['Test-bench data', P.facts.sessions + ' sessions', fmt(P.facts.hours) + ' h at 2 samples per second'],
+  ];
+  for (const [label, value, note] of facts) {
+    const f = el('div', { class: 'fact' }, box);
+    el('span', { class: 'fact-label', text: label }, f);
+    el('span', { class: 'fact-value', text: value }, f);
+    el('span', { class: 'fact-note', text: note }, f);
+  }
+  $('tHotText').textContent = fmt(THOT, 1);
+  $('sigmaText').textContent = fmt(SIGMA, 2);
+  $('builtNote').textContent = `Built ${P.built} by showcase/build_showcase.py from outputs/results/ and the saved models. Test set opened once, ${P.facts.test_opened_at}. UCS321 AI for Engineers, TIET Patiala.`;
+}
+
+// ---------------------------------------------------------------- shared controls
+function segButtons(container, items, isOn, onPick) {
+  container.replaceChildren();
+  for (const it of items) {
+    const b = el('button', { type: 'button', 'aria-pressed': String(isOn(it.key)) }, container);
+    b.appendChild(document.createTextNode(it.label));
+    if (it.sub) el('small', { text: it.sub }, b);
+    b.addEventListener('click', () => onPick(it.key));
+  }
+}
+function syncControls() {
+  segButtons($('sessSeg'), SESS.map((s, i) => ({ key: i, label: String(s.id), sub: fmt(s.hours, 1) + ' h' })), k => k === state.si, setSession);
+  segButtons($('modelSeg'), MODEL_KEYS.map(k => ({ key: k, label: MODEL_LABEL[k] })), k => k === state.model, k => { state.model = k; renderReplay(); syncControls(); });
+  $('wiSess').value = String(state.si);
+  segButtons($('wiModelSeg'), ['m6', 'm3'].map(k => ({ key: k, label: MODEL_LABEL[k] })), k => k === wi.model, k => { wi.model = k; syncControls(); scheduleWhatIf(); });
+  for (const id of ['kRange', 'kRange2']) $(id).value = String(state.k);
+  const kText = `k = ${fmt(state.k, 1)} → ${fmt(state.k * SIGMA, 2)} °C`;
+  $('kOut').textContent = kText;
+  $('kOut2').textContent = kText;
+}
+function setSession(si) {
+  state.si = si;
+  state.play = false;
+  state.head = SESS[si].rows - 1;
+  state.hover = null;
+  syncControls();
+  renderReplay();
+  scheduleWhatIf(0);
+  renderMemory();
+}
+function setK(k) {
+  state.k = Math.round(k * 10) / 10;
+  syncControls();
+  renderReplay();
+  renderSafety();
+}
+
+// ---------------------------------------------------------------- replay console
+function runsOf(flags) {  // [start, end) index runs where flags are 1
+  const runs = [];
+  let s = -1;
+  for (let i = 0; i < flags.length; i++) {
+    if (flags[i] && s < 0) s = i;
+    if (!flags[i] && s >= 0) { runs.push([s, i]); s = -1; }
+  }
+  if (s >= 0) runs.push([s, flags.length]);
+  return runs;
+}
+function hotRuns(si) {
+  const key = 'hot:' + si;
+  if (!derived[key]) {
+    const a = col('stator_winding', si), f = new Uint8Array(a.length);
+    for (let i = 0; i < a.length; i++) f[i] = a[i] >= THOT ? 1 : 0;
+    derived[key] = runsOf(f);
+  }
+  return derived[key];
+}
+function alarmRuns(si, model, k) {
+  const key = 'al:' + si + ':' + model + ':' + k;
+  if (!derived[key]) {
+    const p = col(model, si), f = new Uint8Array(p.length), m = k * SIGMA;
+    for (let i = 0; i < p.length; i++) f[i] = p[i] + m >= THOT ? 1 : 0;
+    derived[key] = runsOf(f);
+  }
+  return derived[key];
+}
+function replayGeometry(cv) {
+  const s = SESS[state.si];
+  const w = cv.clientWidth;
+  const sx = i => M.l + (i / Math.max(1, s.rows - 1)) * (w - M.l - M.r);
+  return { s, w, sx };
+}
+let replayQueued = false;
+function renderReplay() {
+  if (replayQueued) return;
+  replayQueued = true;
+  requestAnimationFrame(() => { replayQueued = false; drawReplay(); });
+}
+function drawReplay() {
+  if (!D) return;
+  const s = SESS[state.si], si = state.si, rows = s.rows;
+  const head = Math.min(rows - 1, Math.floor(state.head));
+  const hover = state.hover;
+  const actual = col('stator_winding', si), pred = col(state.model, si), cool = col('coolant', si);
+  const buckets = Math.max(200, Math.round($('mainCv').clientWidth));
+  const ghost = 0.17;
+
+  // main chart
+  {
+    const { ctx, w, h } = prepCanvas($('mainCv'));
+    const y0 = 14, y1 = h - 24;
+    const sx = i => M.l + (i / Math.max(1, rows - 1)) * (w - M.l - M.r);
+    const sy = v => y1 - (v - Y_DOMAIN[0]) / (Y_DOMAIN[1] - Y_DOMAIN[0]) * (y1 - y0);
+    drawYAxis(ctx, w, y0, y1, sy, [20, 40, 60, 80, 100, 120, 140], '°C');
+    drawXGrid(ctx, rows, sx, y0, y1, true, h);
+    hLine(ctx, w, sy(THOT), C.critical, [5, 4], 1.25);
+    canvasText(ctx, `Hot level ${fmt(THOT, 1)} °C`, w - M.r - 4, sy(THOT) - 4, 'right', C['ink-2']);
+    if (state.k > 0) {
+      const trig = THOT - state.k * SIGMA;
+      hLine(ctx, w, sy(trig), C.critical, [1.5, 3.5], 1.25, 0.8);
+      canvasText(ctx, `Alarm trigger for the estimate ${fmt(trig, 1)} °C`, w - M.r - 4, sy(trig) + 4, 'right', C['ink-2'], 'top');
+    }
+    const eC = envelope('cool' + si, cool, buckets), eA = envelope('act' + si, actual, buckets), eP = envelope(state.model + si, pred, buckets);
+    ctx.save(); ctx.beginPath(); ctx.rect(M.l, y0 - 3, w - M.l - M.r, y1 - y0 + 6); ctx.clip();
+    for (const [e, arr, color, width] of [[eC, cool, C.coolant, 1.5], [eA, actual, C.sensor, 2], [eP, pred, C.copper, 2]]) {
+      strokeSeries(ctx, e, arr, sx, sy, rows, { color, width, alpha: ghost });
+      strokeSeries(ctx, e, arr, sx, sy, head, { color, width });
+    }
+    ctx.restore();
+    const xh = sx(head);
+    ctx.save(); ctx.strokeStyle = C['ink-2']; ctx.globalAlpha = 0.6; ctx.beginPath(); ctx.moveTo(Math.round(xh) + 0.5, y0); ctx.lineTo(Math.round(xh) + 0.5, y1); ctx.stroke(); ctx.restore();
+    dot(ctx, xh, sy(cool[head]), C.coolant);
+    dot(ctx, xh, sy(actual[head]), C.sensor);
+    dot(ctx, xh, sy(pred[head]), C.copper);
+    if (hover !== null) drawCrosshair(ctx, sx(hover), y0, y1);
+  }
+  // alarm strip: two rows, "really hot" and "alarm on"
+  {
+    const { ctx, w, h } = prepCanvas($('stripCv'));
+    const sx = i => M.l + (i / Math.max(1, rows - 1)) * (w - M.l - M.r);
+    const rowsY = [[4, 'HOT', hotRuns(si), C['ink-2']], [25, 'ALARM', alarmRuns(si, state.model, state.k), C.critical]];
+    ctx.font = '10.5px ' + C.fMono;
+    for (const [y, label, runs, color] of rowsY) {
+      ctx.fillStyle = C['surface-2'];
+      ctx.fillRect(M.l, y, w - M.l - M.r, 16);
+      ctx.fillStyle = C.muted; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      ctx.fillText(label, M.l - 8, y + 8);
+      for (const [a, b] of runs) {
+        const x0 = sx(a), x1 = Math.max(sx(b - 1), x0 + 1);
+        ctx.fillStyle = color;
+        ctx.globalAlpha = ghost; ctx.fillRect(x0, y, x1 - x0, 16);
+        if (a <= head) { ctx.globalAlpha = 1; const xe = Math.min(x1, sx(head)); ctx.fillRect(x0, y, Math.max(1, xe - x0), 16); }
+        ctx.globalAlpha = 1;
+      }
+    }
+    const xh = Math.round(sx(head)) + 0.5;
+    ctx.strokeStyle = C['ink-2']; ctx.globalAlpha = 0.6; ctx.beginPath(); ctx.moveTo(xh, 0); ctx.lineTo(xh, h); ctx.stroke(); ctx.globalAlpha = 1;
+    if (hover !== null) drawCrosshair(ctx, sx(hover), 0, h);
+  }
+  // input small multiples
+  const inputs = [
+    ['Current |i|', 'A', currentMag(si), GLOBAL.is, v => fmt(v, 0)],
+    ['Speed', 'rpm', col('motor_speed', si), GLOBAL.sp, v => (v / 1000) + 'k'],
+    ['Torque', 'N·m', col('torque', si), GLOBAL.tq, v => fmt(v, 0)],
+  ];
+  inputs.forEach(([name, unit, arr, dom, tf], k) => {
+    const cv = $('inCv' + k);
+    const { ctx, w, h } = prepCanvas(cv);
+    const last = k === inputs.length - 1;
+    const y0 = 16, y1 = h - (last ? 22 : 6);
+    const sx = i => M.l + (i / Math.max(1, rows - 1)) * (w - M.l - M.r);
+    const sy = v => y1 - (v - dom[0]) / (dom[1] - dom[0]) * (y1 - y0);
+    const tv = ticks(dom[0], dom[1], 2);
+    drawYAxis(ctx, w, y0, y1, sy, tv, null, tf);
+    drawXGrid(ctx, rows, sx, y0, y1, last, h);
+    canvasText(ctx, `${name} (${unit})`, M.l + 2, 12, 'left', C['ink-2'], 'bottom', false);
+    const e = envelope('in' + k + ':' + si, arr, buckets);
+    strokeSeries(ctx, e, arr, sx, sy, rows, { color: C['ink-2'], width: 1.25, alpha: ghost });
+    strokeSeries(ctx, e, arr, sx, sy, head, { color: C['ink-2'], width: 1.25 });
+    const xh = Math.round(sx(head)) + 0.5;
+    ctx.strokeStyle = C['ink-2']; ctx.globalAlpha = 0.6; ctx.beginPath(); ctx.moveTo(xh, y0); ctx.lineTo(xh, y1); ctx.stroke(); ctx.globalAlpha = 1;
+    if (hover !== null) drawCrosshair(ctx, sx(hover), y0, y1);
+  });
+  drawThermo(actual[head], pred[head]);
+  updateReadout(head, actual, pred);
+  updateTransport(head);
+}
+function drawCrosshair(ctx, x, y0, y1) {
+  ctx.save();
+  ctx.strokeStyle = C.muted; ctx.lineWidth = 1; ctx.setLineDash([2, 3]);
+  ctx.beginPath(); ctx.moveTo(Math.round(x) + 0.5, y0); ctx.lineTo(Math.round(x) + 0.5, y1); ctx.stroke();
+  ctx.restore();
+}
+function drawThermo(sensor, est) {
+  const { ctx, w, h } = prepCanvas($('thermoCv'));
+  const x0 = 34, tw = 14, y0 = 8, y1 = h - 8;
+  const sy = v => y1 - (v - Y_DOMAIN[0]) / (Y_DOMAIN[1] - Y_DOMAIN[0]) * (y1 - y0);
+  ctx.fillStyle = C['surface-2']; ctx.strokeStyle = C.line;
+  ctx.beginPath(); ctx.roundRect(x0, y0, tw, y1 - y0, 7); ctx.fill(); ctx.stroke();
+  ctx.save(); ctx.beginPath(); ctx.roundRect(x0, y0, tw, y1 - y0, 7); ctx.clip();
+  ctx.fillStyle = C.sensor; ctx.globalAlpha = 0.28;
+  ctx.fillRect(x0, sy(sensor), tw, y1 - sy(sensor));
+  ctx.restore();
+  ctx.font = '10px ' + C.fMono;
+  ctx.fillStyle = C.muted; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (const v of [20, 60, 100, 140]) ctx.fillText(String(v), x0 - 6, sy(v));
+  ctx.strokeStyle = C.critical; ctx.lineWidth = 1.5; ctx.setLineDash([3, 2]);
+  ctx.beginPath(); ctx.moveTo(x0 - 3, sy(THOT)); ctx.lineTo(x0 + tw + 3, sy(THOT)); ctx.stroke(); ctx.setLineDash([]);
+  ctx.strokeStyle = C.sensor; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.moveTo(x0, sy(sensor)); ctx.lineTo(x0 + tw, sy(sensor)); ctx.stroke();
+  ctx.fillStyle = C.copper;
+  const ye = sy(est);
+  ctx.beginPath(); ctx.moveTo(x0 + tw + 1, ye); ctx.lineTo(x0 + tw + 9, ye - 5); ctx.lineTo(x0 + tw + 9, ye + 5); ctx.closePath(); ctx.fill();
+}
+function updateReadout(head, actual, pred) {
+  const s = SESS[state.si];
+  const a = actual[head], p = pred[head];
+  $('roTime').textContent = `${fmtDur(head / RATE)} of ${fmtDur((s.rows - 1) / RATE)} · session ${s.id}`;
+  $('roSensor').textContent = fmt(a, 1) + ' °C';
+  $('roEst').textContent = fmt(p, 1) + ' °C';
+  $('roEstLabel').textContent = 'Estimate · ' + MODEL_LABEL[state.model];
+  $('roErr').textContent = fmtSigned(p - a, 1) + ' °C';
+  const alarm = p + state.k * SIGMA >= THOT, hot = a >= THOT;
+  $('lamp').classList.toggle('on', alarm);
+  $('lampState').textContent = alarm ? 'ALARM' : 'No alarm';
+  const verdict = alarm && hot ? '✓ Correct: the winding really is hot'
+    : alarm ? '⚠ False alarm: the winding is below the hot level'
+    : hot ? '✕ Missed: the winding is hot but no alarm'
+    : '✓ Normal: not hot, no alarm';
+  if ($('lampVerdict').textContent !== verdict) $('lampVerdict').textContent = verdict;
+  const cum = cumSq(state.si, state.model);
+  $('roRmse').textContent = fmt(Math.sqrt(cum[head + 1] / (head + 1)), 2) + ' °C';
+  $('roRmseAll').textContent = `Whole session, Phase 5: ${fmt(s.rmse[state.model], 2)} °C`;
+}
+function updateTransport(head) {
+  const s = SESS[state.si];
+  const atEnd = head >= s.rows - 1;
+  $('playBtn').textContent = state.play ? '❚❚ Pause' : atEnd ? '▶ Replay from start' : '▶ Play';
+  $('scrub').max = String(s.rows - 1);
+  $('scrub').value = String(head);
+}
+let lastTs = 0;
+function frameLoop(ts) {
+  if (!state.play) return;
+  const dt = Math.min(0.1, (ts - lastTs) / 1000);
+  lastTs = ts;
+  const s = SESS[state.si];
+  state.head = Math.min(s.rows - 1, state.head + dt * state.speed * RATE);
+  if (state.head >= s.rows - 1) state.play = false;
+  drawReplay();
+  if (state.play) requestAnimationFrame(frameLoop);
+}
+function togglePlay() {
+  const s = SESS[state.si];
+  if (state.play) { state.play = false; renderReplay(); return; }
+  if (state.head >= s.rows - 1) state.head = 0;
+  state.play = true;
+  lastTs = performance.now();
+  requestAnimationFrame(frameLoop);
+}
+function replayHover(ev, cv) {
+  if (!D) return;
+  const { s, sx } = replayGeometry(cv);
+  const rect = cv.getBoundingClientRect();
+  const x = ev.clientX - rect.left;
+  const w = cv.clientWidth;
+  const frac = (x - M.l) / (w - M.l - M.r);
+  if (frac < 0 || frac > 1) { replayLeave(); return; }
+  const i = Math.round(frac * (s.rows - 1));
+  state.hover = i;
+  const si = state.si;
+  const a = col('stator_winding', si)[i], p = col(state.model, si)[i];
+  const plots = $('replayPlots');
+  const pr = plots.getBoundingClientRect();
+  showTip($('replayTip'), plots, ev.clientX - pr.left, ev.clientY - pr.top, fmtDur(i / RATE) + ' into session ' + s.id, [
+    { color: C.sensor, value: fmt(a, 1) + ' °C', label: 'Real sensor' },
+    { color: C.copper, value: fmt(p, 1) + ' °C', label: 'Estimate · ' + MODEL_LABEL[state.model] },
+    { value: fmtSigned(p - a, 1) + ' °C', label: 'Error' },
+    { color: C.coolant, value: fmt(col('coolant', si)[i], 1) + ' °C', label: 'Coolant' },
+    { color: C['ink-2'], value: fmt(currentMag(si)[i], 0) + ' A', label: 'Current' },
+    { color: C['ink-2'], value: fmt(col('motor_speed', si)[i], 0) + ' rpm', label: 'Speed' },
+    { color: C['ink-2'], value: fmt(col('torque', si)[i], 0) + ' N·m', label: 'Torque' },
+  ]);
+  renderReplay();
+}
+function replayLeave() {
+  state.hover = null;
+  $('replayTip').hidden = true;
+  renderReplay();
+}
+function replaySeek(ev, cv) {
+  if (!D) return;
+  const { s } = replayGeometry(cv);
+  const rect = cv.getBoundingClientRect();
+  const frac = (ev.clientX - rect.left - M.l) / (cv.clientWidth - M.l - M.r);
+  if (frac < 0 || frac > 1) return;
+  state.head = Math.round(frac * (s.rows - 1));
+  renderReplay();
+}
+function renderReplayLegend() {
+  const lg = $('replayLegend');
+  lg.replaceChildren();
+  for (const [color, text, cls] of [[C.sensor, 'Real sensor (not a model input)', ''], [C.copper, 'Model estimate', ''], [C.coolant, 'Coolant (a model input)', ''], [C.critical, 'Hot level and alarm trigger', 'dash']]) {
+    const k = el('span', { class: 'key' }, lg);
+    const i = el('i', { class: cls }, k); i.style.color = color;
+    el('span', { text }, k);
+  }
+}
+
+// ---------------------------------------------------------------- what-if lab
+const wi = { model: 'm6', job: null, timer: null, result: null, base: null, version: 0, hover: null };
+function wiMods() { return { coolant: Number($('wiCool').value), load: Number($('wiLoad').value) }; }
+function scheduleWhatIf(delay = 140) {
+  $('wiCoolOut').textContent = fmtSigned(Number($('wiCool').value), 0) + ' °C';
+  $('wiLoadOut').textContent = '× ' + fmt(Number($('wiLoad').value), 2);
+  if (!D) return;
+  clearTimeout(wi.timer);
+  wi.timer = setTimeout(runWhatIf, delay);
+}
+async function runWhatIf() {
+  if (wi.job) wi.job.cancelled = true;
+  const job = { cancelled: false };
+  wi.job = job;
+  const si = state.si, kind = wi.model, mods = wiMods();
+  const t0 = performance.now();
+  $('wiStatus').textContent = `Running the ${MODEL_LABEL[kind]} on ${SESS[si].rows.toLocaleString('en-US')} rows…`;
+  const base = await baseline(kind, si);
+  if (job.cancelled) return;
+  const res = (mods.coolant === 0 && mods.load === 1) ? base : await predict(kind, si, mods, job);
+  if (!res || job.cancelled) return;
+  wi.base = base; wi.result = res; wi.version++; wi.si = si; wi.kind = kind;
+  const secs = (performance.now() - t0) / 1000;
+  $('wiStatus').textContent = `Computed 45 features and ${SESS[si].rows.toLocaleString('en-US')} predictions in ${fmt(secs, 2)} s.`;
+  renderWhatIfStats(mods);
+  drawWhatIf();
+}
+function renderWhatIfStats(mods) {
+  const a = wi.base.pred, b = wi.result.pred, n = a.length;
+  let maxA = -Infinity, maxB = -Infinity, hotA = 0, hotB = 0, sum = 0;
+  for (let i = 0; i < n; i++) {
+    if (a[i] > maxA) maxA = a[i];
+    if (b[i] > maxB) maxB = b[i];
+    if (a[i] >= THOT) hotA++;
+    if (b[i] >= THOT) hotB++;
+    sum += b[i] - a[i];
+  }
+  const tiles = $('wiTiles');
+  tiles.replaceChildren();
+  const data = [
+    ['Peak estimate', `${fmt(maxA, 1)} → ${fmt(maxB, 1)} °C`, `change ${fmtSigned(maxB - maxA, 1)} °C`],
+    [`Time at or above ${fmt(THOT, 1)} °C`, `${fmt(hotA / RATE, 1)} → ${fmt(hotB / RATE, 1)} min`, 'by the estimate'],
+    ['Average shift', `${fmtSigned(sum / n, 1)} °C`, 'what-if minus recorded'],
+  ];
+  for (const [l, v, note] of data) {
+    const t = el('div', { class: 'tile' }, tiles);
+    el('span', { class: 't-label', text: l }, t);
+    el('span', { class: 't-value num', text: v }, t);
+    el('span', { class: 't-note', text: note }, t);
+  }
+  // share of rows pushed outside what the model saw in training
+  const cols = wi.result.cols, R = P.train_range;
+  let out = 0;
+  for (let i = 0; i < n; i++) {
+    if (cols.coolant[i] < R.coolant[0] || cols.coolant[i] > R.coolant[1] || cols.i_s[i] > R.i_s[1] || cols.torque[i] < R.torque[0] || cols.torque[i] > R.torque[1]) out++;
+  }
+  const box = $('wiRange');
+  box.replaceChildren();
+  const share = 100 * out / n;
+  const chip = el('span', { class: 'chip' + (share > 0 ? ' warn' : '') }, box);
+  if (share > 0) el('span', { class: 'ic', text: '!' }, chip);
+  el('span', { text: share > 0 ? `${fmt(share, 1)} % of rows are outside the training range (coolant, current or torque). Treat those estimates with extra caution.` : 'All inputs stay inside the range seen in training.' }, chip);
+}
+function drawWhatIf() {
+  const cv = $('wiCv');
+  const { ctx, w, h } = prepCanvas(cv);
+  if (!wi.result) return;
+  const si = wi.si, rows = SESS[si].rows;
+  const y0 = 14, y1 = h - 24;
+  let top = Y_DOMAIN[1], bottom = Y_DOMAIN[0];
+  for (const arr of [wi.base.pred, wi.result.pred]) for (let i = 0; i < arr.length; i++) { if (arr[i] > top) top = arr[i]; if (arr[i] < bottom) bottom = arr[i]; }
+  top = Math.ceil(top / 10) * 10; bottom = Math.floor(bottom / 10) * 10;
+  const sx = i => M.l + (i / Math.max(1, rows - 1)) * (w - M.l - M.r);
+  const sy = v => y1 - (v - bottom) / (top - bottom) * (y1 - y0);
+  drawYAxis(ctx, w, y0, y1, sy, ticks(bottom, top, 6), '°C', v => fmt(v, 0));
+  drawXGrid(ctx, rows, sx, y0, y1, true, h);
+  hLine(ctx, w, sy(THOT), C.critical, [5, 4], 1.25);
+  canvasText(ctx, `Hot level ${fmt(THOT, 1)} °C`, w - M.r - 4, sy(THOT) - 4, 'right', C['ink-2']);
+  const buckets = Math.max(200, Math.round(w));
+  const actual = col('stator_winding', si);
+  const eA = envelope('act' + si, actual, buckets);
+  const eB = envelope('wib:' + wi.kind + si, wi.base.pred, buckets);
+  const eW = envelope('wi' + wi.version, wi.result.pred, buckets);
+  strokeSeries(ctx, eA, actual, sx, sy, rows, { color: C.sensor, width: 1.5, alpha: 0.35 });
+  strokeSeries(ctx, eB, wi.base.pred, sx, sy, rows, { color: C.copper, width: 2 });
+  strokeSeries(ctx, eW, wi.result.pred, sx, sy, rows, { color: C.whatif, width: 2 });
+  if (wi.hover !== null) {
+    const x = sx(wi.hover);
+    drawCrosshair(ctx, x, y0, y1);
+    dot(ctx, x, sy(wi.base.pred[wi.hover]), C.copper);
+    dot(ctx, x, sy(wi.result.pred[wi.hover]), C.whatif);
+  }
+}
+function renderWhatIfLegend() {
+  const lg = $('wiLegend');
+  lg.replaceChildren();
+  for (const [color, text] of [[C.sensor, 'Real sensor, recorded run (faint)'], [C.copper, 'Estimate, recorded inputs'], [C.whatif, 'Estimate, what-if inputs']]) {
+    const k = el('span', { class: 'key' }, lg);
+    const i = el('i', {}, k); i.style.color = color;
+    el('span', { text }, k);
+  }
+}
+function whatIfHover(ev) {
+  if (!wi.result) return;
+  const cv = $('wiCv'), rect = cv.getBoundingClientRect(), rows = SESS[wi.si].rows;
+  const frac = (ev.clientX - rect.left - M.l) / (cv.clientWidth - M.l - M.r);
+  if (frac < 0 || frac > 1) { whatIfLeave(); return; }
+  const i = Math.round(frac * (rows - 1));
+  wi.hover = i;
+  const plots = $('wiPlots'), pr = plots.getBoundingClientRect();
+  const a = wi.base.pred[i], b = wi.result.pred[i];
+  showTip($('wiTip'), plots, ev.clientX - pr.left, ev.clientY - pr.top, fmtDur(i / RATE) + ' into session ' + SESS[wi.si].id, [
+    { color: C.whatif, value: fmt(b, 1) + ' °C', label: 'What-if estimate' },
+    { color: C.copper, value: fmt(a, 1) + ' °C', label: 'Recorded-input estimate' },
+    { value: fmtSigned(b - a, 1) + ' °C', label: 'Difference' },
+    { color: C.sensor, value: fmt(col('stator_winding', wi.si)[i], 1) + ' °C', label: 'Real sensor, recorded run' },
+  ]);
+  drawWhatIf();
+}
+function whatIfLeave() { wi.hover = null; $('wiTip').hidden = true; drawWhatIf(); }
+
+// ---------------------------------------------------------------- thermal memory explainer
+const memLines = [
+  { key: 'raw', label: 'Raw current', span: 0, on: true },
+  { key: 'e120', label: '1 min EWMA', span: 120, on: true },
+  { key: 'e600', label: '5 min EWMA', span: 600, on: true },
+  { key: 'e1800', label: '15 min EWMA', span: 1800, on: true },
+  { key: 'e5400', label: '45 min EWMA', span: 5400, on: true },
+];
+const mem = { si: -1, series: {}, r: {}, hover: null };
+function memColor(k) { return k === 0 ? C.muted : C['mem-' + k]; }
+function pearson(x, y) {
+  const n = x.length;
+  let mx = 0, my = 0;
+  for (let i = 0; i < n; i++) { mx += x[i]; my += y[i]; }
+  mx /= n; my /= n;
+  let sxy = 0, sxx = 0, syy = 0;
+  for (let i = 0; i < n; i++) { const a = x[i] - mx, b = y[i] - my; sxy += a * b; sxx += a * a; syy += b * b; }
+  return sxy / Math.sqrt(sxx * syy);
+}
+function prepMemory() {
+  if (mem.si === state.si) return;
+  const si = state.si;
+  const id = col('i_d', si), iq = col('i_q', si), n = id.length;
+  const raw = new Float64Array(n);
+  for (let i = 0; i < n; i++) raw[i] = Math.fround(Math.sqrt(id[i] * id[i] + iq[i] * iq[i]));
+  mem.series = { raw };
+  for (const L of memLines) if (L.span) mem.series[L.key] = ewma(raw, L.span);
+  const t = col('stator_winding', si);
+  for (const L of memLines) mem.r[L.key] = pearson(mem.series[L.key], t);
+  mem.si = si;
+}
+function renderMemory() {
+  if (!D) return;
+  prepMemory();
+  $('memTitle').textContent = `Current and its running averages · session ${SESS[state.si].id}`;
+  const box = $('memToggles');
+  box.replaceChildren();
+  memLines.forEach((L, k) => {
+    const b = el('button', { class: 'toggle', type: 'button', 'aria-pressed': String(L.on) }, box);
+    const i = el('i', {}, b); i.style.color = memColor(k);
+    el('span', { text: L.label }, b);
+    el('b', { text: 'r = ' + fmt(mem.r[L.key], 2) }, b);
+    b.addEventListener('click', () => { L.on = !L.on; renderMemory(); });
+  });
+  drawMemory();
+}
+function drawMemory() {
+  if (!D || mem.si < 0) return;
+  const si = mem.si, rows = SESS[si].rows;
+  const buckets = Math.max(200, Math.round($('memCv').clientWidth));
+  {
+    const { ctx, w, h } = prepCanvas($('memCv'));
+    const y0 = 14, y1 = h - 6;
+    const top = GLOBAL.is[1];
+    const sx = i => M.l + (i / Math.max(1, rows - 1)) * (w - M.l - M.r);
+    const sy = v => y1 - v / top * (y1 - y0);
+    drawYAxis(ctx, w, y0, y1, sy, ticks(0, top, 3), 'A', v => fmt(v, 0));
+    drawXGrid(ctx, rows, sx, y0, y1, false, h);
+    memLines.forEach((L, k) => {
+      if (!L.on) return;
+      const arr = mem.series[L.key];
+      strokeSeries(ctx, envelope('mem' + L.key + si, arr, buckets), arr, sx, sy, rows, { color: memColor(k), width: k === 0 ? 1 : 2, alpha: k === 0 ? 0.6 : 1 });
+    });
+    if (mem.hover !== null) drawCrosshair(ctx, sx(mem.hover), y0, y1);
+  }
+  {
+    const { ctx, w, h } = prepCanvas($('memTCv'));
+    const y0 = 16, y1 = h - 22;
+    const sx = i => M.l + (i / Math.max(1, rows - 1)) * (w - M.l - M.r);
+    const sy = v => y1 - (v - Y_DOMAIN[0]) / (Y_DOMAIN[1] - Y_DOMAIN[0]) * (y1 - y0);
+    drawYAxis(ctx, w, y0, y1, sy, [20, 80, 140], '°C');
+    drawXGrid(ctx, rows, sx, y0, y1, true, h);
+    canvasText(ctx, 'Winding temperature, real sensor (°C)', M.l + 2, 12, 'left', C['ink-2'], 'bottom', false);
+    const t = col('stator_winding', si);
+    strokeSeries(ctx, envelope('act' + si, t, buckets), t, sx, sy, rows, { color: C.sensor, width: 2 });
+    if (mem.hover !== null) drawCrosshair(ctx, sx(mem.hover), y0, y1);
+  }
+}
+function memHover(ev, cv) {
+  if (mem.si < 0) return;
+  const rect = cv.getBoundingClientRect(), rows = SESS[mem.si].rows;
+  const frac = (ev.clientX - rect.left - M.l) / (cv.clientWidth - M.l - M.r);
+  if (frac < 0 || frac > 1) { memLeave(); return; }
+  const i = Math.round(frac * (rows - 1));
+  mem.hover = i;
+  const plots = $('memPlots'), pr = plots.getBoundingClientRect();
+  const rowsTip = memLines.filter(L => L.on).map(L => ({ color: memColor(memLines.indexOf(L)), value: fmt(mem.series[L.key][i], 0) + ' A', label: L.label }));
+  rowsTip.push({ color: C.sensor, value: fmt(col('stator_winding', mem.si)[i], 1) + ' °C', label: 'Winding temperature' });
+  showTip($('memTip'), plots, ev.clientX - pr.left, ev.clientY - pr.top, fmtDur(i / RATE) + ' into session ' + SESS[mem.si].id, rowsTip);
+  drawMemory();
+}
+function memLeave() { mem.hover = null; $('memTip').hidden = true; drawMemory(); }
+
+function renderMemoryCurve() {
+  const svg = $('memCurve'), wrap = $('memCurveWrap');
+  const W = Math.max(280, wrap.clientWidth), H = 250;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('height', H);
+  svg.replaceChildren();
+  const m = { l: 40, r: 16, t: 14, b: 44 };
+  const pts = P.memory;
+  const labels = ['none', '1', '5', '15', '45'];
+  const yMax = 16;
+  const sx = k => m.l + (k + 0.5) * (W - m.l - m.r) / pts.length;
+  const sy = v => H - m.b - v / yMax * (H - m.t - m.b);
+  for (const v of [0, 4, 8, 12, 16]) {
+    svgEl('line', { class: 'grid', x1: m.l, x2: W - m.r, y1: sy(v), y2: sy(v) }, svg);
+    svgEl('text', { x: m.l - 8, y: sy(v) + 4, 'text-anchor': 'end', text: String(v) }, svg);
+  }
+  svgEl('text', { x: 0, y: 10, text: '°C' }, svg);
+  svgEl('line', { class: 'axis', x1: m.l, x2: W - m.r, y1: sy(0), y2: sy(0) }, svg);
+  pts.forEach((p, k) => {
+    svgEl('text', { x: sx(k), y: H - m.b + 18, 'text-anchor': 'middle', text: labels[k] }, svg);
+    svgEl('line', { x1: sx(k), x2: sx(k), y1: sy(p.cv_rmse - p.cv_rmse_std), y2: sy(p.cv_rmse + p.cv_rmse_std), stroke: 'var(--copper)', 'stroke-width': 1.5, 'stroke-opacity': 0.45 }, svg);
+  });
+  svgEl('text', { x: (m.l + W - m.r) / 2, y: H - 6, 'text-anchor': 'middle', text: 'longest running average (min)' }, svg);
+  svgEl('polyline', { points: pts.map((p, k) => `${sx(k)},${sy(p.cv_rmse)}`).join(' '), fill: 'none', stroke: 'var(--copper)', 'stroke-width': 2, 'stroke-linejoin': 'round' }, svg);
+  const tip = $('memCurveTip');
+  pts.forEach((p, k) => {
+    svgEl('circle', { cx: sx(k), cy: sy(p.cv_rmse), r: 6.5, fill: 'var(--surface)' }, svg);
+    svgEl('circle', { cx: sx(k), cy: sy(p.cv_rmse), r: 4.5, fill: 'var(--copper)' }, svg);
+    if (k === 0 || k === 2 || k === pts.length - 1) {
+      svgEl('text', { class: 'val', x: sx(k) + (k === 0 ? 10 : 0), y: sy(p.cv_rmse + p.cv_rmse_std) - 8, 'text-anchor': k === 0 ? 'start' : 'middle', text: fmt(p.cv_rmse, 2) }, svg);
+    }
+    const hit = svgEl('rect', { class: 'hit', x: sx(k) - (W - m.l - m.r) / pts.length / 2, y: m.t, width: (W - m.l - m.r) / pts.length, height: H - m.t - m.b, tabindex: 0 }, svg);
+    const show = ev => {
+      const r = wrap.getBoundingClientRect();
+      const px = ev.clientX ? ev.clientX - r.left : sx(k), py = ev.clientY ? ev.clientY - r.top : sy(p.cv_rmse);
+      showTip(tip, wrap, px, py, p.memory, [
+        { color: C.copper, value: fmt(p.cv_rmse, 2) + ' °C', label: 'CV RMSE' },
+        { value: '± ' + fmt(p.cv_rmse_std, 2) + ' °C', label: 'std over 5 folds' },
+        { value: String(p.n_features), label: 'features' },
+      ]);
+    };
+    hit.addEventListener('pointermove', show);
+    hit.addEventListener('focus', show);
+    hit.addEventListener('pointerleave', () => { tip.hidden = true; });
+    hit.addEventListener('blur', () => { tip.hidden = true; });
+  });
+  const none = pts[0], five = pts[2], all = pts[pts.length - 1];
+  $('memCurveNote').textContent = `Without memory the error is ${fmt(none.cv_rmse, 2)} °C. Five minutes of memory already brings it to ${fmt(five.cv_rmse, 2)} °C, and all four averages to ${fmt(all.cv_rmse, 2)} °C. In the data, the winding follows the current with a median delay of ${fmt(P.facts.thermal_lag_min, 1)} min.`;
+}
+
+// ---------------------------------------------------------------- model leaderboard
+const lb = { zoom: false };
+function renderLeaderboard() {
+  const svg = $('lbSvg'), wrap = $('lbWrap'), tip = $('lbTip');
+  const W = Math.max(300, wrap.clientWidth);
+  const narrow = W < 560;
+  const rows = P.cv.filter(r => !lb.zoom || r.rmse_mean < 7);
+  const rowH = 34, m = { l: narrow ? 150 : 188, r: narrow ? 14 : 150, t: 8, b: 40 };
+  const H = m.t + rows.length * rowH + m.b;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('height', H);
+  svg.replaceChildren();
+  const dom = lb.zoom ? [3.5, 7] : [0, 32];
+  const sx = v => m.l + (v - dom[0]) / (dom[1] - dom[0]) * (W - m.l - m.r);
+  for (const v of ticks(dom[0], dom[1], narrow ? 4 : 6)) {
+    svgEl('line', { class: 'grid', x1: sx(v), x2: sx(v), y1: m.t, y2: H - m.b }, svg);
+    svgEl('text', { x: sx(v), y: H - m.b + 16, 'text-anchor': 'middle', text: String(v) }, svg);
+  }
+  svgEl('text', { x: (m.l + W - m.r) / 2, y: H - 6, 'text-anchor': 'middle', text: 'RMSE (°C), lower is better' }, svg);
+  if (!narrow) svgEl('text', { x: W - m.r + 12, y: m.t + 4, text: 'CV · test' }, svg);
+  rows.forEach((r, k) => {
+    const y = m.t + k * rowH + rowH / 2;
+    const test = P.test.find(t => t.model === r.model);
+    const final = r.model === P.final_model;
+    const name = narrow ? r.model.replace(' (45 features)', ' (45)').replace(' coolant + offset', ' coolant+off.') : r.model;
+    svgEl('text', { class: final ? 'lbl-strong' : 'lbl', x: m.l - 12, y: y + 4, 'text-anchor': 'end', text: name + (final ? ' ★' : '') }, svg);
+    const lo = Math.max(dom[0], r.rmse_mean - r.rmse_std), hi = Math.min(dom[1], r.rmse_mean + r.rmse_std);
+    svgEl('line', { x1: sx(lo), x2: sx(hi), y1: y, y2: y, stroke: 'var(--coolant)', 'stroke-width': 2, 'stroke-opacity': 0.5, 'stroke-linecap': 'round' }, svg);
+    svgEl('circle', { cx: sx(r.rmse_mean), cy: y, r: 6.5, fill: 'var(--surface)' }, svg);
+    svgEl('circle', { cx: sx(r.rmse_mean), cy: y, r: 4.5, fill: 'var(--coolant)' }, svg);
+    if (test && test.rmse >= dom[0] && test.rmse <= dom[1]) {
+      const tx = sx(test.rmse);
+      svgEl('rect', { x: tx - 7, y: y - 7, width: 14, height: 14, fill: 'var(--surface)', transform: `rotate(45 ${tx} ${y})` }, svg);
+      svgEl('rect', { x: tx - 5, y: y - 5, width: 10, height: 10, fill: 'var(--copper)', transform: `rotate(45 ${tx} ${y})` }, svg);
+    }
+    if (!narrow) svgEl('text', { class: 'val', x: W - m.r + 12, y: y + 4, text: fmt(r.rmse_mean, 2) + (test ? ' · ' + fmt(test.rmse, 2) : '') }, svg);
+    const hit = svgEl('rect', { class: 'hit', x: 0, y: y - rowH / 2, width: W, height: rowH, tabindex: 0 }, svg);
+    const show = ev => {
+      const rr = wrap.getBoundingClientRect();
+      const px = ev.clientX ? ev.clientX - rr.left : sx(r.rmse_mean), py = ev.clientY ? ev.clientY - rr.top : y;
+      const tt = [
+        { color: C.coolant, value: `${fmt(r.rmse_mean, 2)} ± ${fmt(r.rmse_std, 2)} °C`, label: 'CV RMSE' },
+        { value: fmt(r.train_rmse_mean, 2) + ' °C', label: 'training RMSE' },
+      ];
+      if (test) tt.push({ color: C.copper, value: fmt(test.rmse, 2) + ' °C', label: 'test RMSE' }, { value: fmt(test.mae, 2) + ' °C', label: 'test MAE' }, { value: fmt(test.r2, 3), label: 'test R²' });
+      showTip(tip, wrap, px, py, r.model + (final ? ' · final model' : ''), tt);
+    };
+    hit.addEventListener('pointermove', show);
+    hit.addEventListener('focus', show);
+    hit.addEventListener('pointerleave', () => { tip.hidden = true; });
+    hit.addEventListener('blur', () => { tip.hidden = true; });
+  });
+}
+function renderLeaderboardChrome() {
+  const lg = $('lbLegend');
+  lg.replaceChildren();
+  for (const [color, cls, text] of [[C.coolant, 'dot', 'Cross-validation, mean ± 1 std over 5 folds'], [C.copper, 'dia', 'Final test, 6 unseen sessions']]) {
+    const k = el('span', { class: 'key' }, lg);
+    const i = el('i', { class: cls }, k); i.style.color = color;
+    el('span', { text }, k);
+  }
+  segButtons($('lbZoom'), [{ key: false, label: 'All 9 models' }, { key: true, label: 'Zoom on the top' }], k => k === lb.zoom, k => { lb.zoom = k; renderLeaderboard(); renderLeaderboardChrome(); });
+  const top5 = P.cv.slice().sort((a, b) => a.rmse_mean - b.rmse_mean).slice(0, 5);
+  const spread = top5[top5.length - 1].rmse_mean - top5[0].rmse_mean;
+  const stds = top5.map(r => r.rmse_std);
+  const box = $('lbCallout');
+  box.replaceChildren();
+  el('p', { class: 'card-title', text: 'The close finish' }, box);
+  el('p', { class: 'big', text: fmt(spread, 2) + ' °C' }, box);
+  el('p', { text: `The top five models in cross-validation are within ${fmt(spread, 2)} °C of each other, less than the fold-to-fold spread of ${fmt(Math.min(...stds), 2)} to ${fmt(Math.max(...stds), 2)} °C. So cross-validation could not really rank them.` }, box);
+  const mlp = P.test.find(t => t.model === MODEL_FILE_NAME.m6), ridge = P.test.find(t => t.model === MODEL_FILE_NAME.m3);
+  el('p', { text: `The MLP won cross-validation and was fixed as the final model before the test. On the test it scored ${fmt(mlp.rmse, 2)} °C, behind Ridge (${fmt(ridge.rmse, 2)} °C). We kept the MLP: switching after seeing the test would make the test score meaningless.` }, box);
+  el('p', { text: `Both targets set before testing were met: ≤ ${fmt(P.targets.test_rmse_max, 1)} °C, and ≤ ${fmt(P.targets.test_rmse_max_vs_b1, 2)} °C (half of the coolant + offset baseline).` }, box);
+}
+
+// ---------------------------------------------------------------- ablation and importance
+const drv = { tab: 'abl' };
+const ABL_LABEL = {
+  'full': 'All 45 features', 'no torque': 'Without torque', 'no engineered': 'Without physics features',
+  'no EWMA': 'Without EWMA memory', 'raw only': '8 raw signals only', 'with leakage (forbidden)': 'Plus forbidden sensors',
+};
+function renderDrivers() {
+  const svg = $('drvSvg'), wrap = $('drvWrap'), tip = $('drvTip');
+  const W = Math.max(300, wrap.clientWidth), narrow = W < 560;
+  let rows, ref = null, xLabel, valFmt;
+  if (drv.tab === 'abl') {
+    rows = P.ablation.map(r => ({ name: `${ABL_LABEL[r.variant] || r.variant} (${r.n_features})`, value: r.cv_rmse, std: r.cv_rmse_std, forbidden: r.variant.includes('forbidden'), raw: r }));
+    ref = P.ablation.find(r => r.variant === 'full').cv_rmse;
+    xLabel = 'MLP cross-validation RMSE (°C)';
+    valFmt = v => fmt(v, 2) + ' °C';
+    $('drvSub').textContent = `Retraining without the EWMA memory raises the error from ${fmt(ref, 2)} to ${fmt(P.ablation.find(r => r.variant === 'no EWMA').cv_rmse, 2)} °C. The forbidden row uses the three temperatures measured next to the winding; it reaches ${fmt(P.ablation.find(r => r.variant.includes('forbidden')).cv_rmse, 2)} °C only because it reads neighbouring thermometers, which a real sensorless motor does not have.`;
+  } else {
+    rows = P.importance.map(r => ({ name: r.family.charAt(0).toUpperCase() + r.family.slice(1), value: r.rmse_increase, std: r.std, raw: r }));
+    xLabel = 'Increase in test RMSE when the group is shuffled (°C)';
+    valFmt = v => '+' + fmt(v, 2) + ' °C';
+    $('drvSub').textContent = `Final MLP on every 10th test row (base RMSE ${fmt(P.importance_base_rmse, 2)} °C), 3 shuffles per group. Coolant matters most: it sets the starting temperature that the winding heats up from.`;
+  }
+  const rowH = 34, m = { l: narrow ? 170 : 300, r: 70, t: 6, b: 40 };
+  const H = m.t + rows.length * rowH + m.b;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('height', H);
+  svg.replaceChildren();
+  const defs = svgEl('defs', {}, svg);
+  const pat = svgEl('pattern', { id: 'hatch', width: 6, height: 6, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' }, defs);
+  svgEl('rect', { width: 6, height: 6, fill: 'var(--surface-2)' }, pat);
+  svgEl('line', { x1: 0, y1: 0, x2: 0, y2: 6, stroke: 'var(--muted)', 'stroke-width': 2 }, pat);
+  const xMax = Math.max(...rows.map(r => r.value)) * 1.08;
+  const sx = v => m.l + v / xMax * (W - m.l - m.r);
+  for (const v of ticks(0, xMax, narrow ? 3 : 6)) {
+    svgEl('line', { class: 'grid', x1: sx(v), x2: sx(v), y1: m.t, y2: H - m.b }, svg);
+    svgEl('text', { x: sx(v), y: H - m.b + 16, 'text-anchor': 'middle', text: String(v) }, svg);
+  }
+  svgEl('text', { x: (m.l + W - m.r) / 2, y: H - 6, 'text-anchor': 'middle', text: xLabel }, svg);
+  rows.forEach((r, k) => {
+    const y = m.t + k * rowH + rowH / 2;
+    svgEl('text', { class: r.forbidden ? 'lbl' : 'lbl', x: m.l - 12, y: y + 4, 'text-anchor': 'end', text: r.name }, svg);
+    const x0 = sx(0), x1 = sx(r.value), bh = 18;
+    const d = `M${x0},${y - bh / 2} H${x1 - 4} a4,4 0 0 1 4,4 V${y + bh / 2 - 4} a4,4 0 0 1 -4,4 H${x0} Z`;
+    svgEl('path', { d, fill: r.forbidden ? 'url(#hatch)' : 'var(--copper)', stroke: r.forbidden ? 'var(--muted)' : 'none', 'stroke-width': r.forbidden ? 1 : 0 }, svg);
+    svgEl('text', { class: 'val', x: x1 + 8, y: y + 4, text: valFmt(r.value) }, svg);
+    const hit = svgEl('rect', { class: 'hit', x: 0, y: y - rowH / 2, width: W, height: rowH, tabindex: 0 }, svg);
+    const show = ev => {
+      const rr = wrap.getBoundingClientRect();
+      const px = ev.clientX ? ev.clientX - rr.left : x1, py = ev.clientY ? ev.clientY - rr.top : y;
+      const tt = drv.tab === 'abl'
+        ? [{ color: C.copper, value: fmt(r.value, 2) + ' °C', label: 'CV RMSE' }, { value: '± ' + fmt(r.std, 2) + ' °C', label: 'std over 5 folds' }, { value: fmtSigned(r.raw.change_vs_full, 2) + ' °C', label: 'vs all 45 features' }]
+        : [{ color: C.copper, value: '+' + fmt(r.value, 2) + ' °C', label: 'RMSE increase' }, { value: '± ' + fmt(r.std, 2) + ' °C', label: 'std over 3 shuffles' }, { value: String(r.raw.n_features), label: 'features in the group' }];
+      showTip(tip, wrap, px, py, r.forbidden ? r.name + ' · not allowed' : r.name, tt);
+    };
+    hit.addEventListener('pointermove', show);
+    hit.addEventListener('focus', show);
+    hit.addEventListener('pointerleave', () => { tip.hidden = true; });
+    hit.addEventListener('blur', () => { tip.hidden = true; });
+  });
+  if (ref !== null) {
+    svgEl('line', { x1: sx(ref), x2: sx(ref), y1: m.t, y2: H - m.b, stroke: 'var(--ink-2)', 'stroke-width': 1, 'stroke-dasharray': '4 3' }, svg);
+  }
+}
+function setTab(t) {
+  drv.tab = t;
+  $('tabAbl').setAttribute('aria-selected', String(t === 'abl'));
+  $('tabImp').setAttribute('aria-selected', String(t === 'imp'));
+  renderDrivers();
+}
+
+// ---------------------------------------------------------------- safety trade-off (live from the saved MLP predictions)
+let HOT = null, NHOT = 0;
+function safetyAt(k) {
+  const m = k * SIGMA, pred = D.m6;
+  let tp = 0, fn = 0, fp = 0, tn = 0;
+  for (let i = 0; i < N; i++) {
+    const alarm = pred[i] + m >= THOT;
+    if (HOT[i]) { if (alarm) tp++; else fn++; } else { if (alarm) fp++; else tn++; }
+  }
+  return { k, caught: 100 * tp / (tp + fn), falsePct: 100 * fp / (fp + tn), missedMin: fn / RATE, falseMin: fp / RATE, precision: 100 * tp / (tp + fp) };
+}
+let CURVE = null;
+function prepSafety() {
+  HOT = new Uint8Array(N);
+  for (let i = 0; i < N; i++) { HOT[i] = D.stator_winding[i] >= THOT ? 1 : 0; NHOT += HOT[i]; }
+  CURVE = [];
+  for (let j = 0; j <= 30; j++) CURVE.push(safetyAt(j / 10));
+  let ok = true;
+  for (const row of P.safety.table) {
+    const live = safetyAt(row.k);
+    if (Math.abs(live.caught - row.caught_pct) > 1e-6 || Math.abs(live.falsePct - row.false_alarm_pct) > 1e-6 || NHOT !== row.hot_rows) ok = false;
+  }
+  const badge = $('safetyBadge');
+  badge.classList.add(ok ? 'ok' : 'bad');
+  badge.lastElementChild.textContent = ok ? 'k = 0, 1, 2 match safety_alarm.csv' : 'Mismatch with safety_alarm.csv';
+}
+function renderSafety() {
+  if (!CURVE) return;
+  const svg = $('sfSvg'), wrap = $('sfWrap'), tip = $('sfTip');
+  const W = Math.max(300, wrap.clientWidth), H = 300;
+  const m = { l: 50, r: 20, t: 16, b: 46 };
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svg.setAttribute('height', H);
+  svg.replaceChildren();
+  const xMax = Math.ceil(Math.max(...CURVE.map(c => c.falsePct)) + 1);
+  const yLo = Math.floor(Math.min(...CURVE.map(c => c.caught)) / 5) * 5, yHi = Math.ceil(Math.max(...CURVE.map(c => c.caught)) / 5) * 5;
+  const sx = v => m.l + v / xMax * (W - m.l - m.r);
+  const sy = v => H - m.b - (v - yLo) / (yHi - yLo) * (H - m.t - m.b);
+  for (const v of ticks(0, xMax, 5)) { svgEl('line', { class: 'grid', x1: sx(v), x2: sx(v), y1: m.t, y2: H - m.b }, svg); svgEl('text', { x: sx(v), y: H - m.b + 16, 'text-anchor': 'middle', text: v + ' %' }, svg); }
+  for (const v of ticks(yLo, yHi, 4)) { svgEl('line', { class: 'grid', x1: m.l, x2: W - m.r, y1: sy(v), y2: sy(v) }, svg); svgEl('text', { x: m.l - 8, y: sy(v) + 4, 'text-anchor': 'end', text: v + ' %' }, svg); }
+  svgEl('text', { x: (m.l + W - m.r) / 2, y: H - 6, 'text-anchor': 'middle', text: 'False alarms (% of normal moments)' }, svg);
+  svgEl('text', { x: 0, y: 10, text: 'Hot moments caught' }, svg);
+  svgEl('polyline', { points: CURVE.map(c => `${sx(c.falsePct)},${sy(c.caught)}`).join(' '), fill: 'none', stroke: 'var(--copper)', 'stroke-width': 2, 'stroke-linejoin': 'round' }, svg);
+  for (const row of P.safety.table) {
+    const x = sx(row.false_alarm_pct), y = sy(row.caught_pct);
+    svgEl('circle', { cx: x, cy: y, r: 6, fill: 'var(--surface)', stroke: 'var(--ink-2)', 'stroke-width': 1.5 }, svg);
+    svgEl('text', { class: 'val', x: x + 10, y: y + 16, text: 'k = ' + row.k }, svg);
+  }
+  const cur = safetyAt(state.k);
+  svgEl('circle', { cx: sx(cur.falsePct), cy: sy(cur.caught), r: 7.5, fill: 'var(--surface)' }, svg);
+  svgEl('circle', { cx: sx(cur.falsePct), cy: sy(cur.caught), r: 5.5, fill: 'var(--copper)' }, svg);
+  CURVE.forEach(c => {
+    const hit = svgEl('circle', { class: 'hit', cx: sx(c.falsePct), cy: sy(c.caught), r: 12 }, svg);
+    hit.addEventListener('pointermove', ev => {
+      const rr = wrap.getBoundingClientRect();
+      showTip(tip, wrap, ev.clientX - rr.left, ev.clientY - rr.top, `k = ${fmt(c.k, 1)} · margin ${fmt(c.k * SIGMA, 2)} °C`, [
+        { color: C.copper, value: fmt(c.caught, 1) + ' %', label: 'hot moments caught' },
+        { value: fmt(c.falsePct, 2) + ' %', label: 'false alarms' },
+        { value: fmt(c.precision, 1) + ' %', label: 'alarms that were right' },
+      ]);
+    });
+    hit.addEventListener('pointerleave', () => { tip.hidden = true; });
+    hit.addEventListener('click', () => setK(c.k));
+  });
+  const tiles = $('sfTiles');
+  tiles.replaceChildren();
+  for (const [l, v, note] of [
+    ['Hot moments caught', fmt(cur.caught, 1) + ' %', `${fmt(cur.missedMin, 1)} min of hot time missed`],
+    ['False alarms', fmt(cur.falsePct, 2) + ' %', `${fmt(cur.falseMin, 1)} min of alarms while not hot`],
+    ['Alarms that were right', fmt(cur.precision, 1) + ' %', 'precision'],
+    ['Margin added', fmt(cur.k * SIGMA, 2) + ' °C', `k = ${fmt(cur.k, 1)} × σ`],
+  ]) {
+    const t = el('div', { class: 'tile' }, tiles);
+    el('span', { class: 't-label', text: l }, t);
+    el('span', { class: 't-value num', text: v }, t);
+    el('span', { class: 't-note', text: note }, t);
+  }
+  $('sfNote').textContent = `Over all six test sessions: ${NHOT.toLocaleString('en-US')} hot rows (${fmt(NHOT / RATE, 1)} min) at or above ${fmt(THOT, 1)} °C. On hot rows the MLP reads ${fmt(Math.abs(P.under.mean_signed_error_hot_rows), 2)} °C too low on average, which is why a margin helps. Tap a point on the curve to pick its k.`;
+}
+
+// ---------------------------------------------------------------- method
+function renderMethod() {
+  const steps = [
+    ['01', 'Controller signals', '8 inputs', 'Ambient and coolant temperature, voltages u_d and u_q, currents i_d and i_q, speed and torque.'],
+    ['02', 'Physics features', '+ 5', 'Current and voltage magnitude, current squared (copper loss is I²R), electrical and mechanical power.'],
+    ['03', 'Thermal memory', '+ 32', 'EWMA of 8 signals over 1, 5, 15 and 45 minutes, computed per session from past rows only.'],
+    ['04', 'MLP regressor', '45 → 64 → 32 → 1', 'Inputs are standardised, then a neural network with two hidden layers (ReLU) estimates the temperature.'],
+    ['05', 'Winding estimate', '°C, twice a second', `Test RMSE ${fmt(P.test.find(t => t.model === MODEL_FILE_NAME.m6).rmse, 2)} °C on six unseen sessions; ${fmt(P.facts.within_5c_pct, 1)} % of test rows within 5 °C.`],
+  ];
+  const box = $('steps');
+  for (const [n, title, count, text] of steps) {
+    const s = el('div', { class: 'step' }, box);
+    el('span', { class: 'n', text: n }, s);
+    el('h3', { text: title }, s);
+    el('span', { class: 'count', text: count }, s);
+    el('p', { text }, s);
+  }
+  const forbid = P.ablation.find(r => r.variant.includes('forbidden'));
+  const rules = [
+    `Split by whole sessions: ${P.facts.n_train_sessions} for training, 6 for the test (${fmt(100 * P.facts.test_share, 1)} % of rows). Rows half a second apart are near-copies, so a random row split would leak.`,
+    `The test sessions were frozen before any exploration and used once, on ${P.facts.test_opened_at}.`,
+    `The three temperatures measured next to the winding (permanent magnet, stator tooth, stator yoke) are never inputs. With them the error would drop to ${fmt(forbid.cv_rmse, 2)} °C, but a sensorless motor does not have them.`,
+    'Every model and setting was chosen with 5-fold cross-validation on training sessions only (GroupKFold by session), with seed 42.',
+  ];
+  const st = P.session_start.find(r => r.prediction === 'pred_m6');
+  const limits = [
+    `Session starts: the running averages need time to warm up. MLP mean error in the first 5 minutes is ${fmt(st.mae_first_5_min, 2)} °C, against ${fmt(st.mae_after_5_min, 2)} °C afterwards.`,
+    `Hot periods: on hot rows the MLP reads ${fmt(Math.abs(P.under.mean_signed_error_hot_rows), 2)} °C too low on average, hence the safety margin.`,
+    `One motor on a test bench, with winding temperatures up to ${fmt(P.facts.winding_max, 1)} °C in training. Another motor, or hotter conditions, needs new data.`,
+    'This page replays recorded data. It has not run on live hardware.',
+  ];
+  for (const t of rules) el('li', { text: t }, $('rulesList'));
+  for (const t of limits) el('li', { text: t }, $('limitsList'));
+}
+async function verifyBrowserModel() {
+  const badge = $('checkBadge');
+  let maxM = 0, maxR = 0;
+  for (let si = 0; si < SESS.length; si++) {
+    badge.lastElementChild.textContent = `Running · session ${si + 1} of ${SESS.length}`;
+    for (const kind of ['m6', 'm3']) {
+      const { pred } = await baseline(kind, si);
+      const saved = col(kind, si);
+      for (let i = 0; i < pred.length; i++) {
+        const d = Math.abs(pred[i] - saved[i]);
+        if (kind === 'm6') { if (d > maxM) maxM = d; } else if (d > maxR) maxR = d;
+      }
+    }
+  }
+  const ok = maxM < 0.05 && maxR < 0.05;
+  badge.classList.add(ok ? 'ok' : 'bad');
+  badge.lastElementChild.textContent = ok ? 'Browser model matches the saved predictions' : 'Browser model differs from the saved predictions';
+  $('checkText').textContent = `Yes. The page rebuilds all ${NF} features from the raw signals and runs the saved MLP and Ridge weights in JavaScript. Over all ${N.toLocaleString('en-US')} test rows, its estimates differ from the saved Phase 5 predictions by at most ${fmt(maxM, 4)} °C (MLP) and ${fmt(maxR, 4)} °C (Ridge). The saved predictions are rounded to 0.001 °C, so differences of this size are expected. The replay above uses the saved predictions; the what-if lab uses the live model.`;
+}
+
+// ---------------------------------------------------------------- wiring
+function wire() {
+  $('playBtn').addEventListener('click', togglePlay);
+  $('scrub').addEventListener('input', e => { state.head = Number(e.target.value); if (state.play) state.play = false; renderReplay(); });
+  $('speedSel').addEventListener('change', e => { state.speed = Number(e.target.value); });
+  for (const id of ['kRange', 'kRange2']) $(id).addEventListener('input', e => setK(Number(e.target.value)));
+  for (const id of ['mainCv', 'stripCv', 'inCv0', 'inCv1', 'inCv2']) {
+    const cv = $(id);
+    cv.addEventListener('pointermove', ev => replayHover(ev, cv));
+    cv.addEventListener('pointerleave', replayLeave);
+    cv.addEventListener('click', ev => replaySeek(ev, cv));
+  }
+  $('wiCv').addEventListener('pointermove', whatIfHover);
+  $('wiCv').addEventListener('pointerleave', whatIfLeave);
+  for (const id of ['memCv', 'memTCv']) {
+    const cv = $(id);
+    cv.addEventListener('pointermove', ev => memHover(ev, cv));
+    cv.addEventListener('pointerleave', memLeave);
+  }
+  const sel = $('wiSess');
+  SESS.forEach((s, i) => el('option', { value: String(i), text: `Session ${s.id} · ${fmt(s.hours, 1)} h` }, sel));
+  sel.addEventListener('change', e => setSession(Number(e.target.value)));
+  $('wiCool').addEventListener('input', () => scheduleWhatIf());
+  $('wiLoad').addEventListener('input', () => scheduleWhatIf());
+  $('wiReset').addEventListener('click', () => { $('wiCool').value = '0'; $('wiLoad').value = '1'; scheduleWhatIf(0); });
+  $('tabAbl').addEventListener('click', () => setTab('abl'));
+  $('tabImp').addEventListener('click', () => setTab('imp'));
+  for (const [a, b] of [['tabAbl', 'tabImp'], ['tabImp', 'tabAbl']]) {
+    $(a).addEventListener('keydown', e => { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { $(b).focus(); $(b).click(); } });
+  }
+  let resizeQueued = false;
+  new ResizeObserver(() => {
+    if (resizeQueued) return;
+    resizeQueued = true;
+    requestAnimationFrame(() => { resizeQueued = false; redrawAll(); });
+  }).observe(document.body);
+  const themeChanged = () => { readColors(); renderReplayLegend(); renderWhatIfLegend(); renderLeaderboardChrome(); if (mem.si >= 0) renderMemory(); redrawAll(); };
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', themeChanged);
+  new MutationObserver(themeChanged).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+}
+function redrawAll() {
+  renderMemoryCurve();
+  renderLeaderboard();
+  renderDrivers();
+  if (!D) return;
+  drawReplay();
+  drawWhatIf();
+  drawMemory();
+  renderSafety();
+}
+
+async function start() {
+  readColors();
+  renderFacts();
+  renderReplayLegend();
+  renderWhatIfLegend();
+  renderLeaderboardChrome();
+  renderMethod();
+  wire();
+  syncControls();
+  scheduleWhatIf();
+  redrawAll();
+  try {
+    if (typeof DecompressionStream === 'undefined') throw new Error('This browser cannot unpack the data (no DecompressionStream). Try a current Chrome, Edge, Firefox or Safari.');
+    D = await decode();
+  } catch (err) {
+    $('loadMsg').textContent = 'Could not load the test data: ' + err.message;
+    return;
+  }
+  $('loadMsg').hidden = true;
+  GLOBAL = globalRanges();
+  state.head = SESS[state.si].rows - 1;
+  prepSafety();
+  renderMemory();
+  redrawAll();
+  scheduleWhatIf(0);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => redrawAll());
+  setTimeout(verifyBrowserModel, 400);
+}
+start();
+</script>

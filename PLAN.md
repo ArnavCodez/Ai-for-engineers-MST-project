@@ -7,19 +7,11 @@
 - [x] Phase 0: Setup & data check (done 2026-10-07, Arnav)
 - [x] Phase 1: Problem understanding (done 2026-10-07, Arnav)
 - [x] Phase 2: Exploratory data analysis (EDA) (done 2026-10-07, run by Arnav for owner B; B to review)
-<<<<<<< Updated upstream
-- [x] Phase 3: Pre-processing & feature engineering(done 11-10-26 by Abhilasha)
-- [ ] Phase 4: Model development
-- [ ] Phase 5: Evaluation & interpretation (the test set is used here, once)
-- [ ] Phase 6: Innovation extras
-- [ ] Phase 7: Deliverables & viva prep
-=======
-- [x] Phase 3: Pre-processing & feature engineering (done 2026-10-10, run by Arnav for owner C)
+- [x] Phase 3: Pre-processing & feature engineering (done 2026-10-10, run by Arnav for owner C; Abhilasha also marked it done on GitHub on 2026-10-11)
 - [x] Phase 4: Model development (done 2026-10-10, run by Arnav for owner D)
 - [x] Phase 5: Evaluation & interpretation (the test set is used here, once) (done 2026-10-10; test opened 09:24:52; run by Arnav for owner E)
 - [x] Phase 6: Innovation extras (done 2026-10-11, run by Arnav for owners C, D, E)
-- [ ] Phase 7: Deliverables & viva prep (all deliverables done 2026-10-11; only the per-member mock vivas remain)
->>>>>>> Stashed changes
+- [ ] Phase 7: Deliverables & viva prep (all deliverables done 2026-10-11, interactive showcase added 2026-10-14; only the per-member mock vivas remain)
 
 > Before every phase, read `CONTRIBUTING.md` (especially section 4: logging) and the last entries of `LOG.md`.
 
@@ -107,6 +99,7 @@ MST_Motor_Temperature/
   notebooks/                01_data_check, 02_eda, 03_preprocessing_features, 04_modelling, 05_evaluation, 06_innovation
   src/                      config.py [v2] (shared contract), download_data.py, features.py, plotting.py, metrics.py (small helpers)
   app.py                    [v2] Streamlit replay demo (Phase 6, core)
+  showcase/                 interactive web showcase: build_showcase.py + template.html (Phase 7, added 2026-10-14)
   outputs/figures/          all PNGs
   outputs/results/          CSV/JSON results, split_profiles.json, pip_freeze.txt
   outputs/models/           saved models (.joblib), git-ignored
@@ -401,6 +394,7 @@ Do **at least 3** of these (I1 and I3 are strongly recommended). Log each with n
    - `VIVA_QA.md` should have at least 40 Q&As.
    - Each teammate does a mock viva: pair up and quiz each other with 10 random questions from `VIVA_QA.md`, one at a time; the quizzer grades the answers against the A: lines.
 6. **Final `LOG.md` entry:** a project summary plus the final numbers table, cross-checked against `outputs/results/`.
+7. **Interactive showcase (added 2026-10-14, done):** `showcase/build_showcase.py` + `showcase/template.html` build one web page with the test-session replay, a what-if lab (the saved MLP and Ridge run in the browser), and the CV, ablation and safety results. A copy is published online (ask Arnav for the link). The built HTML embeds test data, so it is git-ignored.
 
 **Acceptance criteria**
 - [x] The flow diagram PNG exists.

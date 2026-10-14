@@ -1429,3 +1429,122 @@ The top single features are `coolant_ewma_600`, `i_s_sq`, `motor_speed_ewma_600`
 - To run the demo: `streamlit run app.py`. Live mode needs the git-ignored `features.parquet` and models (run notebooks 01, 03, 04); otherwise it replays the saved predictions.
 
 ---
+
+## 2026-10-14 16:05 | Phase 7.3 | Git conflict markers were pushed in PLAN.md; fixed  (run by: Arnav)
+**Tags:** [BUG]
+**What we did:** Found and removed git conflict markers in the `PLAN.md` phase checklist. They came in with commit `c78c2a0` ("update", 2026-10-12), which is already on GitHub.
+**Why:** The checklist showed both the old and the new version of the phase lines, between `<<<<<<< Updated upstream` and `>>>>>>> Stashed changes`. Anyone reading `PLAN.md` would see a broken file and two contradictory checklists.
+**How:**
+- Kept the local checklist (Phases 0–6 ticked, Phase 7 open for the mock vivas).
+- Credited both on the Phase 3 line: "run by Arnav for owner C; Abhilasha also marked it done on GitHub on 2026-10-11".
+- Searched every file for leftover markers (`<<<<<<<`, `=======`, `>>>>>>>`). Only `PLAN.md` had them.
+**Result:** `PLAN.md` is clean. Not committed yet (Arnav commits).
+**Nuances / gotchas:**
+- **Cause:** "Updated upstream / Stashed changes" is exactly what `git stash pop` writes when the stashed edits and the pulled edits touch the same lines. Here, Abhilasha's GitHub web edit and our local edit both changed the Phase 3 line. Git marks the conflict, but it does not stop you from committing the file with the markers in it.
+- **How to avoid it:** after any `git stash pop`, `git pull` or merge, run `git status` and `git diff --check` (it flags leftover markers) before `git commit`.
+**Alternatives considered:** Reverting the commit. Not needed: one hand edit fixes it, and the rest of that commit is correct.
+**Viva angle:** —
+
+---
+
+## 2026-10-14 16:30 | Phase 7.3 | Interactive web showcase: replay, what-if lab, the trained model running in the browser  (run by: Arnav, coordinator A)
+**Tags:** [RESULT] [DECISION] [NUANCE] [SETUP]
+**What we did:**
+- Built one self-contained web page that presents the whole project interactively.
+- Published it online (private until shared from its Share menu; ask Arnav for the link).
+- What the page does:
+  - replays the 6 test sessions;
+  - runs the saved MLP and Ridge inside the browser for what-if questions;
+  - shows the CV, ablation, importance and safety results.
+**Why:** For the presentation and viva we need something we can click through live on any laptop, without Python. The Streamlit app (`app.py`) needs Python and the git-ignored models. This page needs only a browser.
+**How:**
+- `showcase/build_showcase.py` (run from the repo root: `python showcase/build_showcase.py`) packs three things into the page:
+  - **The test data.** The 6 test sessions (8 raw inputs + the real winding temperature, exact float32 values) and the saved Phase 5 predictions of the 3 finalists (0.001 °C, as in `test_predictions.csv`), gzip-compressed.
+  - **The model weights.** From the saved pipelines `m6_mlp_64_32.joblib` (StandardScaler + MLP 45 → 64 → 32 → 1, ReLU) and `m3_ridge.joblib` (StandardScaler + Ridge, alpha = 10).
+  - **The result numbers.** Every number the page shows, read from `outputs/results/`. Nothing is typed in by hand.
+- **The page itself:** `showcase/template.html`, plain HTML/CSS/JavaScript with no libraries; the charts are drawn on canvas and SVG. In the browser, the JavaScript:
+  1. rebuilds all 45 features exactly like `src/features.py` (physics features first, then an EWMA per session with `adjust=True`, every value stored as float32);
+  2. runs the MLP forward pass: standardise, then two ReLU layers and the output.
+- **Checks before writing the page.** The build script repeats the browser's maths in numpy and stops if anything disagrees:
+  - per-session RMSE vs `test_metrics_per_profile.csv`;
+  - the safety table vs `safety_alarm.csv`;
+  - browser-style predictions vs the saved ones.
+  The check results are saved to `outputs/results/showcase_check.json`.
+- **Outputs.** Both are 4.52 MB and git-ignored (they embed test data):
+  - `showcase/motor_showcase.html`: a complete page; double-click it to present offline (without internet the fonts fall back to system fonts);
+  - `showcase/motor_showcase_artifact.html`: the same content, used for publishing.
+**Result:**
+- **The in-browser models match the saved Phase 5 predictions.** The largest difference over all 141,024 test rows is MLP 0.00053 °C and Ridge 0.00052 °C. That is just the 0.001 °C rounding of the saved CSV, so the page runs the real trained model.
+- **The page's live safety calculation reproduces `safety_alarm.csv` exactly** for k = 0, 1 and 2 (a badge in the page says so).
+- **What-if example** (session 66, coolant 10 °C warmer; `showcase_check.json`):
+
+  | Quantity | Recorded inputs | What-if inputs |
+  |---|---|---|
+  | Mean change in the MLP's estimate | — | +8.53 °C |
+  | Peak estimate | 127.05 °C | 136.17 °C |
+  | Time at or above 104.79 °C | 29.5 min | 50.3 min |
+  | Rows outside the training range | — | 0.83 % |
+
+  This is physically sensible: the winding sits on top of the coolant temperature, so warmer coolant lifts it by almost the same amount.
+- **The page's sections:**
+  - **Live replay:** session and model pickers, play/scrub, a safety-margin slider, an alarm lamp and the running RMSE.
+  - **What-if lab:** coolant −20 to +20 °C; load × 0.6 to 1.3.
+  - **Thermal-memory explainer:** the current against its 1/5/15/45-min EWMAs, with live correlations, plus the memory curve.
+  - **Results:** the model leaderboard (CV ± std and test), the ablation and the importance.
+  - **Safety:** the trade-off curve.
+  - **Method:** the method and its limits.
+- **Checked in a browser:** desktop and phone width (375 px, no sideways scrolling), light and dark themes, no console errors.
+**Nuances / gotchas:**
+- **Test data in the page.** The page displays the test sessions and runs the frozen models on them. This is presentation only, like the end-to-end check in `MST_final`: no model, feature or setting was changed or chosen because of it. The test set was used for evaluation only once (2026-10-10 09:24:52).
+- **Why the browser differs by 0.0005 °C:** `test_predictions.csv` keeps 3 decimals. The browser computes in float64 with float32 storage, like pandas + scikit-learn.
+- **The what-if is not a measurement.** No sensor exists for an invented scenario, so it shows what the model believes. The page warns when rows are pushed outside the training range (coolant, current magnitude, torque).
+- **"Load scale" is an approximation.** It multiplies i_d, i_q and torque together, because in a PMSM torque is almost proportional to i_q (r = 0.9965 in EDA). Voltages and speed stay as recorded, so this is a what-if, not a motor simulation.
+- **The hot level is not the insulation limit.** The alarm's "hot level" of 104.79 °C is the 90th percentile of the training winding temperatures, not the class F insulation limit (155 °C). Teachers may ask.
+- **Dataset terms.** The page carries 6 sessions of the Kaggle dataset. It is private by default; read the dataset's terms before making it public.
+- **A CSS trap, caught before it showed:** a tooltip styled `display: grid` ignores the HTML `hidden` attribute, so hidden tooltips would stay visible in the offline file. Fix: `[hidden] { display: none !important; }` in the page's CSS.
+**Alternatives considered:**
+- **Extending the Streamlit app:** the presenting laptop would need Python and the git-ignored models.
+- **A charting library (Plotly, Chart.js):** needs internet (a CDN) and is slow with 36,000-point sessions. Hand-drawn canvas charts work offline and stay fast.
+- **LightGBM in the browser (1000 trees):** possible but heavy. The replay uses its saved predictions instead.
+- **16-bit inputs, to halve the file size:** rejected. Exact float32 values make the browser-vs-saved check exact.
+**Viva angle:** Q: Is the model in your web page the real one? A: Yes. The page rebuilds all 45 features from the raw signals and runs the saved MLP weights in JavaScript. Over all 141,024 test rows it matches our saved Phase 5 predictions to 0.0005 °C, which is the CSV's rounding.
+
+---
+
+## 2026-10-14 16:40 | Handover  (run by: Arnav)
+**Tags:** —
+**Where we stopped:**
+- The interactive showcase is built, checked and published.
+- The `PLAN.md` conflict markers are fixed.
+- Phase 7 is complete except the per-member mock vivas.
+- **Not committed yet:** `PLAN.md`, `.gitignore`, `README.md`, `LOG.md`, `CONCEPTS.md`, `VIVA_QA.md`, `showcase/` (builder + template) and `outputs/results/showcase_check.json`.
+**What's next (exact next steps):**
+1. Commit and push: `git add -A`, `git commit -m "Interactive showcase + fix PLAN.md conflict markers"`, `git push`. The built 4.5 MB pages are git-ignored on purpose.
+2. Share the interactive showcase page (published online; ask Arnav for the link) with the team from its Share menu.
+3. Every member: a mock viva, as described in `PLAN.md` Phase 7.
+4. Fill in the B–E names (`PLAN.md`, the report, the slides, the tracker).
+**Open issues / questions:**
+- The deadline is still not recorded.
+- `misc.txt` is still unexplained.
+**Before you start, you must know:**
+- **Rebuilding the page** (`python showcase/build_showcase.py`) needs the git-ignored `data/processed/measures_v2.parquet` and `outputs/models/` (notebooks 01, 03 and 04). It takes about 10 s.
+- **To present offline,** double-click `showcase/motor_showcase.html`. Everything except the web fonts works without internet.
+- **After `git stash pop` or a pull,** check for conflict markers before committing (see the 16:05 entry).
+
+---
+
+## 2026-10-14 17:00 | Phase 7.4 | Repo cleanup: team rules moved to CONTRIBUTING.md  (run by: Arnav)
+**Tags:** [DECISION] [SETUP]
+**What we did:** Cleaned the repo before the final upload. The team rules now live in `CONTRIBUTING.md`, and the links to private online pages were removed from the docs.
+**Why:** The repo should hold only what a teammate or grader needs to run and understand the project. The online pages are private, so their links were useless to anyone without access.
+**How:**
+- New `CONTRIBUTING.md`: how we work, code style, and the exact `LOG.md` / `CONCEPTS.md` / `VIVA_QA.md` formats, with the same section numbers as before (4 = logging, 4.7 = concepts, 4.8 = viva). `README.md`, `PLAN.md`, `CONCEPTS.md` and this log now point to it.
+- The old local tool settings file is no longer tracked in git. It stays on Arnav's laptop.
+- Links to the online tracker, slides and showcase were replaced with "ask Arnav for the link".
+- Mock viva: teammates pair up and quiz each other with 10 random questions from `VIVA_QA.md`.
+**Result:** The project runs from the repo as before: `requirements.txt`, `src/`, `notebooks/01`–`06` + `MST_final`, `app.py`, `showcase/`, `outputs/results/`, `outputs/figures/`, `docs/`. No numbers changed.
+**Nuances / gotchas:** Earlier entries were reworded in a few places (rule-file name, links, session wording) without changing any number or result. Older git commits still contain the old files; only the current version is clean.
+**Alternatives considered:** Rewriting the git history to remove the old files from past commits. Rejected: it needs a force-push, which breaks every teammate's clone.
+**Viva angle:** —
+
+---

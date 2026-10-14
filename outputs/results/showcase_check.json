@@ -1,0 +1,19 @@
+{
+  "built": "2026-10-14 16:25",
+  "rows": 141024,
+  "browser_mlp_max_abs_diff_vs_saved_c": 0.0005260542167064841,
+  "browser_ridge_max_abs_diff_vs_saved_c": 0.0005191277740692612,
+  "per_session_rmse_reproduced": true,
+  "safety_table_reproduced": true,
+  "whatif_example": {
+    "session": 66,
+    "model": "M6 MLP (64-32)",
+    "coolant_shift_c": 10.0,
+    "mean_shift_c": 8.526646789759626,
+    "peak_before_c": 127.04502463487798,
+    "peak_after_c": 136.1675920966507,
+    "minutes_at_or_above_t_hot_before": 29.5,
+    "minutes_at_or_above_t_hot_after": 50.333333333333336,
+    "pct_rows_outside_training_range": 0.8279416602697663
+  }
+}
