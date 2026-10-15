@@ -1472,7 +1472,7 @@ The top single features are `coolant_ewma_600`, `i_s_sq`, `motor_speed_ewma_600`
   The check results are saved to `outputs/results/showcase_check.json`.
 - **Outputs.** Both are 4.52 MB and git-ignored (they embed test data):
   - `showcase/motor_showcase.html`: a complete page; double-click it to present offline (without internet the fonts fall back to system fonts);
-  - `showcase/motor_showcase_artifact.html`: the same content, used for publishing.
+  - `showcase/motor_showcase_publish.html`: the same content, used for publishing.
 **Result:**
 - **The in-browser models match the saved Phase 5 predictions.** The largest difference over all 141,024 test rows is MLP 0.00053 °C and Ridge 0.00052 °C. That is just the 0.001 °C rounding of the saved CSV, so the page runs the real trained model.
 - **The page's live safety calculation reproduces `safety_alarm.csv` exactly** for k = 0, 1 and 2 (a badge in the page says so).

@@ -13,7 +13,7 @@ Run from the repo root (needs the git-ignored data and models, i.e. notebooks 01
     python showcase/build_showcase.py
 It writes two files, both git-ignored because they embed test data:
 - showcase/motor_showcase.html: a complete page; double-click it to present offline;
-- showcase/motor_showcase_artifact.html: the same page without <html>/<head>, for publishing online.
+- showcase/motor_showcase_publish.html: the same page without <html>/<head>, for publishing online.
 """
 import base64
 import gzip
@@ -35,7 +35,7 @@ from src.data import load_split  # noqa: E402
 SHOWCASE_DIR = PROJECT_DIR / "showcase"
 TEMPLATE = SHOWCASE_DIR / "template.html"
 OUTPUT = SHOWCASE_DIR / "motor_showcase.html"
-OUTPUT_ARTIFACT = SHOWCASE_DIR / "motor_showcase_artifact.html"
+OUTPUT_PUBLISH = SHOWCASE_DIR / "motor_showcase_publish.html"
 R = config.RESULTS_DIR
 
 PRED_COLS = {"m6": "pred_m6", "m5": "pred_m5", "m3": "pred_m3"}
@@ -272,7 +272,7 @@ payload_json = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).re
 html = TEMPLATE.read_text(encoding="utf-8")
 assert html.count("__PAYLOAD__") == 1 and html.count("__BLOB__") == 1
 html = html.replace("__PAYLOAD__", payload_json).replace("__BLOB__", blob_b64)
-OUTPUT_ARTIFACT.write_text(html, encoding="utf-8")
+OUTPUT_PUBLISH.write_text(html, encoding="utf-8")
 standalone = "\n".join([
     "<!doctype html>",
     '<html lang="en">',
