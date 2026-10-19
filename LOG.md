@@ -1548,3 +1548,15 @@ The top single features are `coolant_ewma_600`, `i_s_sq`, `motor_speed_ewma_600`
 **Viva angle:** —
 
 ---
+
+## 2026-10-19 21:00 | Phase 7.8 | Demo: own-values tab and performance tab  (run by: Arnav)
+**Tags:** [RESULT]
+**What we did:** Split `app.py` into three tabs: the existing replay, "Try your own values" and "Model performance". Added `run_demo.bat`, which makes the venv on the first run and starts the demo on port 8501. Rebuilt `Code1_29.zip` with both.
+**Why:** For the viva demo we want to type an operating point and show the estimate, and show the accuracy charts without opening the notebooks.
+**How:** The own-values tab builds a constant-input run at 2 Hz (idle first, then the chosen point) and passes it through `src/features.build_features`, so the model gets the same 45 features as in training. Presets are medians of training rows near each speed and torque. The performance tab only reads `outputs/results/`.
+**Result:** Idle ends about 0.5 °C above coolant; the heavy-load preset (3500 rpm, 100 Nm, coolant 25 °C) reaches about 90 °C after 90 min with the MLP.
+**Nuances / gotchas:** Inputs far from the test-bench data (for example high current at zero speed) are outside what the model has seen; the tab says so under the chart.
+**Alternatives considered:** A single steady-state number instead of a curve (hides the thermal lag, which is the point of the EWMA features).
+**Viva angle:** Q: "Why does the estimate take time to rise after a step?" A: The EWMA features remember the past load, like the winding's thermal mass, so the model reacts over minutes, not instantly.
+
+---

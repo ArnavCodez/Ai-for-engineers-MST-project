@@ -45,7 +45,12 @@ Read these in order. Viva questions can go to **anyone**, so read all of them:
 ```
 streamlit run app.py
 ```
-It replays one of the 6 test sessions: the estimated vs real winding temperature, a safety margin and an overheating alarm lamp. Without the saved models it falls back to the predictions saved in Phase 5, so it always works.
+Or double-click `run_demo.bat`: it makes the virtual environment on the first run, then opens the demo at http://localhost:8501.
+
+Three tabs:
+- **Replay a test session:** the estimated vs real winding temperature, a safety margin and an overheating alarm lamp. Without the saved models it falls back to the predictions saved in Phase 5, so it always works.
+- **Try your own values:** pick a typical operating point or type the 8 inputs (ambient, coolant, speed, torque, i_d, i_q, u_d, u_q) and how long the motor runs there. The app builds the same 45 features and plots how the estimate climbs. Needs the saved model.
+- **Model performance:** test metrics, CV vs test, predicted vs actual, error histogram, per-session RMSE, permutation importance, ablation and the alarm trade-off, all read from `outputs/results/`.
 
 ## The interactive showcase (best for the presentation)
 A single web page with the whole project: a replay of the 6 test sessions with an alarm lamp, a **what-if lab** where our saved MLP runs inside the browser (change the coolant temperature or the load), the thermal-memory explainer, the model leaderboard, the ablation and the safety-alarm trade-off.
