@@ -1627,3 +1627,22 @@ The top single features are `coolant_ewma_600`, `i_s_sq`, `motor_speed_ewma_600`
 **Viva angle:** Q: "Why does the estimate take time to rise after a step?" A: The EWMA features remember the past load, like the winding's thermal mass, so the model reacts over minutes, not instantly.
 
 ---
+
+## 2026-11-17 23:05 | Phase 7.9 | Browser demo that runs the model live  (run by: Arnav)
+**Tags:** [RESULT] [DECISION]
+**What we did:** Built `demo/index.html`, one offline page in which our MLP and Ridge run inside the browser. The builder is `demo/build_demo.py`, and the page source is in `demo/src/`. The built page is committed, so the demo works from a fresh clone with no Python and no data download.
+**Why:** For the presentation the teacher should see the model compute, not a replay of saved numbers. The showcase replays the predictions saved in Phase 5 and draws the whole curve at once.
+**How:**
+- The builder exports the scaler means and spreads and the MLP and Ridge weights from the saved pipelines. It packs the 8 inputs and the winding temperature of the 6 test sessions as gzip-compressed float32, plus the saved predictions for the check. Before writing, it re-runs the page's maths in numpy and stops if it differs from `test_predictions.csv` by more than 0.05 °C.
+- The page rebuilds the 45 features one sample at a time, exactly as in training: the 5 physics features, then the 32 EWMAs with the adjust=True recurrence, reset at the start of each session. Then it applies the standard scaling and the 45 → 64 → 32 → 1 ReLU network.
+- **On load:** it runs all 141,024 test rows and compares them with the saved predictions.
+- **Replay:** estimates are computed as the replay advances, and the chart is drawn only up to "now".
+- **Other panels:** a five-step "inside the model" view of the current moment, a drive-it-yourself panel with the `app.py` presets, a button that re-runs the whole test set, and the safety trade-off recomputed from the page's own estimates.
+**Result:** The largest difference from the Python predictions is 0.001 °C for both models, which is the rounding of the saved values. Test RMSE in the browser: MLP 6.00 °C, Ridge 4.97 °C, the same per session as Phase 5. 282,048 estimates (both models) take about 2 s. The page is 4.5 MB.
+**Nuances / gotchas:**
+- At the start of a session the running averages have almost no history, so the first minutes show a larger error, exactly as in Phase 5. In session 66 the running RMSE is about 13 °C after 8 minutes and ends at 3.71 °C.
+- In the drive panel, jumping straight from heavy load to idle makes the MLP overshoot for about a minute. A switch that abrupt is not in the recordings; the page says so under the chart.
+**Alternatives considered:** Exporting the model with ONNX or TensorFlow.js (an extra runtime for a 5,057-weight network); committing only the builder like the showcase (then the demo needs the data and the saved models on every laptop).
+**Viva angle:** Q: "How do we know the browser gives the same answer as Python?" A: The page re-runs every test row on load and compares with the saved Phase 5 predictions; the builder does the same check in numpy before it writes the page.
+
+---

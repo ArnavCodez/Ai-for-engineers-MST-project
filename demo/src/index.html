@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Motor winding virtual sensor</title>
+<meta name="description" content="A neural network that estimates the winding temperature of an electric motor, running in the browser. UCS321 MST mini project, group 29, TIET.">
+<style>/*CSS*/</style>
+</head>
+<body>
+<header class="masthead">
+  <div class="wrap masthead-inner">
+    <div>
+      <h1>Motor winding virtual sensor</h1>
+      <p class="masthead-sub">A neural network that estimates how hot the copper winding of a 50 kW electric motor is, from eight signals its controller already measures. UCS321 MST mini project, group 29, TIET Patiala.</p>
+    </div>
+    <div class="masthead-meta">
+      <p id="status" role="status">Unpacking the test data&hellip;</p>
+      <a href="https://github.com/ArnavCodez/Ai-for-engineers-MST-project">Code and report on GitHub</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="wrap workspace" aria-label="Live replay of a test session">
+    <div class="panel picker">
+      <h2>Pick a test session</h2>
+      <p class="note">Six recordings we locked away before exploring the data. The model never trained on them.</p>
+      <div class="sess-list" id="sess-list"></div>
+      <h3 class="ctl-h">Model</h3>
+      <div class="seg" role="radiogroup" aria-label="Model" id="model-seg">
+        <button type="button" data-model="mlp" aria-pressed="true">MLP, final model</button>
+        <button type="button" data-model="ridge" aria-pressed="false">Ridge</button>
+      </div>
+      <h3 class="ctl-h">Replay speed, per second of screen time</h3>
+      <div class="seg" role="radiogroup" aria-label="Replay speed" id="speed-seg">
+        <button type="button" data-speed="1" aria-pressed="false">1 min</button>
+        <button type="button" data-speed="5" aria-pressed="true">5 min</button>
+        <button type="button" data-speed="15" aria-pressed="false">15 min</button>
+        <button type="button" data-speed="60" aria-pressed="false">1 hour</button>
+      </div>
+      <div class="picker-actions">
+        <button type="button" id="play-btn" class="play">Play</button>
+        <button type="button" id="restart-btn" class="quiet">Start again</button>
+      </div>
+      <label class="range-label">Safety margin: <output id="k-out"></output>
+        <input type="range" id="k-range" min="0" max="3" step="0.1" value="1">
+      </label>
+    </div>
+
+    <div class="panel viewer">
+      <div class="viewer-head">
+        <h2 id="sess-title">Session</h2>
+        <p class="truth" id="clock"></p>
+      </div>
+      <canvas id="live" class="live-canvas" aria-label="Real winding temperature and the model's estimate over the session"></canvas>
+      <div class="legend">
+        <span><i class="sw" style="background:var(--real)"></i>Real sensor (the model never sees it)</span>
+        <span><i class="sw" id="est-sw" style="background:var(--est)"></i><span id="est-legend">Model estimate, computed live</span></span>
+        <span><i class="sw dash"></i>Hot level</span>
+      </div>
+      <h3 class="ctl-h">Three of the eight signals the model reads</h3>
+      <canvas id="signals" class="signals-canvas" aria-label="Current, speed and coolant temperature over the session"></canvas>
+    </div>
+
+    <div class="panel verdict">
+      <h2>What the model says now</h2>
+      <div class="readout">
+        <div class="ro-main"><span class="ro-lab" id="ro-model">Estimate, MLP</span><span class="ro-big" id="ro-est">&ndash;</span></div>
+        <div class="ro-row"><span>Real sensor</span><b id="ro-real">&ndash;</b></div>
+        <div class="ro-row"><span>Error</span><b id="ro-err">&ndash;</b></div>
+        <div class="ro-row"><span>RMSE so far</span><b id="ro-rmse">&ndash;</b></div>
+      </div>
+      <div class="lamp" id="lamp"><i></i><div><b id="lamp-state">No alarm</b><span id="lamp-verdict"></span></div></div>
+      <h3 class="ctl-h">The network right now</h3>
+      <canvas id="mini-net" class="mini-net" aria-label="Activity of the network's neurons for the current moment"></canvas>
+      <p class="note" id="engine-note">Every half second of the recording, the page builds 45 inputs from the signals and runs them through 64 and 32 neurons to one temperature.</p>
+    </div>
+  </section>
+
+  <section class="wrap inside" id="inside" aria-labelledby="inside-title">
+    <div class="section-head">
+      <h2 id="inside-title">Inside the model, one step at a time</h2>
+      <p>Everything below is the real calculation for the current moment of the replay. Pause the replay to study one moment, or let it run and watch the numbers change.</p>
+    </div>
+    <div class="steps" role="tablist" aria-label="Steps" id="step-tabs">
+      <button type="button" role="tab" data-step="0"><b>1</b> Eight signals come in</button>
+      <button type="button" role="tab" data-step="1"><b>2</b> Physics features</button>
+      <button type="button" role="tab" data-step="2"><b>3</b> Memory of the recent past</button>
+      <button type="button" role="tab" data-step="3"><b>4</b> One common scale</button>
+      <button type="button" role="tab" data-step="4"><b>5</b> The network adds it up</button>
+    </div>
+
+    <div class="step-panel" data-panel="0" role="tabpanel">
+      <div class="split">
+        <div class="table-wrap"><table class="soft sig-table" id="sig-table"></table></div>
+        <div class="explain">
+          <p>Twice a second the motor controller measures these <strong>eight signals</strong>. They are all the model gets. The bar shows where each value sits between the lowest and highest value in our 63 training sessions.</p>
+          <p>The winding temperature itself is <strong>not</strong> an input: that is what we estimate. The magnet, tooth and yoke temperatures of the test bench are also left out, because a motor without a winding sensor would not have them either and they would give the answer away.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-panel" data-panel="1" role="tabpanel" hidden>
+      <div class="split">
+        <div id="phys"></div>
+        <div class="explain">
+          <p>We add <strong>five features</strong> from basic motor physics, so the model does not have to discover them on its own.</p>
+          <p>The current flowing through the copper heats it by <strong>I&sup2;R</strong>, so the square of the current magnitude is the copper loss up to a constant. The electrical and mechanical power tell the model how hard the motor is working.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="step-panel" data-panel="2" role="tabpanel" hidden>
+      <div class="panel-head">
+        <div class="seg" role="radiogroup" aria-label="Signal" id="mem-sig"></div>
+      </div>
+      <div class="split split-wide">
+        <div>
+          <canvas id="mem-canvas" class="mem-canvas" aria-label="The signal and its four running averages over the last hour"></canvas>
+          <div class="legend" id="mem-legend"></div>
+        </div>
+        <div class="explain">
+          <p>Copper heats up and cools down slowly. In our exploration the winding temperature followed a change in current about <strong id="lag-min">2.5</strong> minutes later. A model that only sees the present moment cannot know how long the motor has been working hard.</p>
+          <p>So for eight signals we keep <strong>running averages</strong> over the last 1, 5, 15 and 45 minutes, 32 features in all. Each one is updated twice a second:</p>
+          <p class="formula">new average = old average + &alpha; &times; (new value &minus; old average), with &alpha; = 2 &divide; (span + 1)</p>
+          <p>The span is counted in samples: 1 minute is 120 samples, so &alpha; = 2 &divide; 121 = 0.0165. The 45-minute average moves the slowest. Removing these 32 features raised our cross-validation error from <strong>4.92 to 13.18 &deg;C</strong>.</p>
+        </div>
+      </div>
+      <h3 class="sub-h">All 32 memory features right now</h3>
+      <div class="table-wrap"><table class="soft mem-table" id="mem-table"></table></div>
+    </div>
+
+    <div class="step-panel" data-panel="3" role="tabpanel" hidden>
+      <canvas id="z-canvas" class="z-canvas" aria-label="The 45 inputs after scaling"></canvas>
+      <div class="explain wide">
+        <p>The 45 inputs come in very different units: volts, amperes, rpm, watts and degrees. Before the network sees them, each one is put on a common scale: <strong>z = (value &minus; training mean) &divide; training standard deviation</strong>.</p>
+        <p>So 0 means a typical value from training, +2 means two standard deviations above it. Orange bars are above the training mean, blue bars below. Move the mouse over a bar to see the feature, its raw value and its scaled value.</p>
+      </div>
+    </div>
+
+    <div class="step-panel" data-panel="4" role="tabpanel" hidden>
+      <div class="net-layout">
+        <canvas id="net-canvas" class="net-canvas" aria-label="The network with its neurons coloured by activity"></canvas>
+        <div class="explain" id="net-explain"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap drive" id="drive" aria-labelledby="drive-title">
+    <div class="section-head">
+      <h2 id="drive-title">Drive the motor yourself</h2>
+      <p>Choose how the motor runs and watch the model's estimate respond, minute by minute. The motor idles for 30 minutes first. The operating points are medians of real training rows near each speed and torque.</p>
+    </div>
+    <div class="drive-grid">
+      <div class="panel">
+        <h3 class="ctl-h first">Operating point</h3>
+        <div class="preset-list" id="preset-list"></div>
+        <div class="slider"><label for="cool-range">Coolant temperature <output id="cool-out"></output></label><input type="range" id="cool-range" min="10" max="100" step="1" value="40"></div>
+        <div class="slider"><label for="amb-range">Ambient temperature <output id="amb-out"></output></label><input type="range" id="amb-range" min="8" max="31" step="1" value="24"></div>
+        <h3 class="ctl-h">Speed, per second of screen time</h3>
+        <div class="seg" role="radiogroup" aria-label="Simulation speed" id="drive-speed">
+          <button type="button" data-speed="1" aria-pressed="false">1 min</button>
+          <button type="button" data-speed="5" aria-pressed="true">5 min</button>
+          <button type="button" data-speed="15" aria-pressed="false">15 min</button>
+        </div>
+        <div class="picker-actions">
+          <button type="button" id="drive-play" class="play">Run</button>
+          <button type="button" id="drive-reset" class="quiet">Start again</button>
+        </div>
+      </div>
+      <div class="panel">
+        <canvas id="drive-canvas" class="drive-canvas" aria-label="The model's estimate during your run"></canvas>
+        <div class="legend">
+          <span><i class="sw" style="background:var(--est)"></i>Estimate of the MLP</span>
+          <span><i class="sw" style="background:var(--cool)"></i>Coolant</span>
+          <span><i class="sw dash"></i>Hot level</span>
+        </div>
+        <p class="note">No sensor exists for an invented run, so this shows what the model believes, not a measurement. Jumping straight from one operating point to another is more abrupt than anything in the recordings, so the estimate can overshoot for a minute right after a switch.</p>
+      </div>
+      <div class="panel">
+        <div class="readout">
+          <div class="ro-main"><span class="ro-lab">Estimate now</span><span class="ro-big" id="dr-est">&ndash;</span></div>
+          <div class="ro-row"><span>Above the coolant</span><b id="dr-rise">&ndash;</b></div>
+          <div class="ro-row"><span>Running at this point for</span><b id="dr-time">&ndash;</b></div>
+          <div class="ro-row"><span>Current</span><b id="dr-cur">&ndash;</b></div>
+        </div>
+        <div class="lamp" id="dr-lamp"><i></i><div><b id="dr-lamp-state">No alarm</b><span id="dr-lamp-note"></span></div></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap results" id="results" aria-labelledby="results-title">
+    <div class="section-head">
+      <h2 id="results-title">How well it works</h2>
+      <p id="results-lead"></p>
+    </div>
+    <div class="results-grid">
+      <div class="panel">
+        <h3>Test error by model</h3>
+        <div id="acc-chart"></div>
+        <p class="note" id="acc-note"></p>
+      </div>
+      <div class="panel run-panel">
+        <h3>Check it yourself: run all six test sessions here</h3>
+        <p class="note">Runs the MLP and Ridge over every one of the test rows inside this browser and compares the result with our saved Python predictions.</p>
+        <button type="button" id="run-btn">Run the test set</button>
+        <div class="progress" aria-hidden="true"><div id="run-bar"></div></div>
+        <div id="run-out" role="status"></div>
+      </div>
+      <div class="panel">
+        <h3>What the memory is worth</h3>
+        <div id="mem-chart"></div>
+        <p class="note">Cross-validation error on the 63 training sessions as we add longer running averages. The 1 and 5 minute averages do most of the work.</p>
+      </div>
+      <div class="panel">
+        <div class="panel-head">
+          <h3>Safety margin: caught against false alarms</h3>
+        </div>
+        <div id="safe-chart"></div>
+        <p class="note" id="safe-note"></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap about" aria-labelledby="about-title">
+    <h2 id="about-title">About the data and the project</h2>
+    <div class="about-grid">
+      <div>
+        <h3>The dataset</h3>
+        <p id="about-data"></p>
+      </div>
+      <div>
+        <h3>The model</h3>
+        <p>Our final model is a small neural network (an <strong>MLP</strong>) with two hidden layers of 64 and 32 neurons, 5,057 learned numbers. We compared nine models with 5-fold cross-validation grouped by session and picked the MLP because it had the lowest cross-validation error. Ridge, a linear model, is shown for comparison.</p>
+        <p>The models were trained in Python with scikit-learn. Everything on this page runs on your own computer, with no server.</p>
+      </div>
+      <div>
+        <h3>The eight signals</h3>
+        <ul class="defects" id="signal-list"></ul>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="wrap foot">
+  <p>Group 29: Arnav Aggarwal, Armaan Malhotra, Tanishq Vashistha, Ishita Sharma and Abhilasha Das. UCS321 AI for Engineers, TIET Patiala.</p>
+  <p><a href="https://github.com/ArnavCodez/Ai-for-engineers-MST-project">github.com/ArnavCodez/Ai-for-engineers-MST-project</a></p>
+</footer>
+
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<script type="text/plain" id="blob">DATA_BLOB</script>
+<script type="application/json" id="meta">/*META*/</script>
+<script>/*APP*/</script>
+</body>
+</html>

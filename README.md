@@ -15,7 +15,9 @@ We estimate the **stator winding temperature (°C)** of an electric motor from s
 
 **Headline result:** a virtual sensor that estimates the winding temperature of unseen sessions with RMSE about 5–6 °C, against 24.5 °C for "coolant + offset". The EWMA thermal-memory features are worth more than 8 °C (ablation: 4.92 → 13.18 °C without them).
 
-**Slides:** `docs/slides/MST_Motor_Winding_Virtual_Sensor.pptx` (PowerPoint, fonts embedded, speaker notes on every slide). The **interactive showcase (present this)**, the **live team tracker** and the **EDA showcase** are published online; ask Arnav for the links. Offline: `showcase/motor_showcase.html` (after building it) and `docs/showcase/index.html`.
+**Present this:** `demo/index.html`. Clone the repo and double-click it: no Python, no data download. Our MLP runs inside the browser and estimates every test session live (see [The browser demo](#the-browser-demo)).
+
+**Slides:** `docs/slides/MST_Motor_Winding_Virtual_Sensor.pptx` (PowerPoint, fonts embedded, speaker notes on every slide). The **interactive showcase**, the **live team tracker** and the **EDA showcase** are published online; ask Arnav for the links. Offline: `showcase/motor_showcase.html` (after building it) and `docs/showcase/index.html`.
 
 ## Start here (new teammate)
 Read these in order. Viva questions can go to **anyone**, so read all of them:
@@ -41,7 +43,26 @@ Read these in order. Viva questions can go to **anyone**, so read all of them:
 4. Run `notebooks/01_data_check.ipynb` once. It creates `data/processed/measures_v2.parquet`, which the other notebooks use.
 5. For the live demo and `MST_final.ipynb`, also run notebooks 03 and 04 (about 25 min). They create the features and the saved models, which are git-ignored.
 
-## The demo
+## The browser demo
+One offline page, `demo/index.html`, committed so it works straight after `git clone`. Open it in Chrome, Edge, Firefox or Safari:
+- Windows: double-click it, or `start demo\index.html`
+- macOS: `open demo/index.html`
+- Linux: `xdg-open demo/index.html`
+
+What it does:
+- **On load** it runs our MLP and Ridge, re-written in JavaScript, over all 141,024 test rows and checks them against the Python predictions saved in Phase 5. The line at the top right reports the largest difference (0.001 °C).
+- **Replay:** pick a test session and press Play. Each estimate is computed live from the 8 signals, so the chart only fills up to "now". The alarm lamp says whether the alarm is right, a false alarm or a miss, and the safety-margin slider moves the trigger.
+- **Inside the model:** five steps for the current moment: the 8 signals, the 5 physics features with the numbers substituted, the 32 running averages, the scaling to z-scores and the network with its strongest contributions.
+- **Drive the motor yourself:** choose an operating point, coolant and ambient temperature, and watch the estimate respond.
+- **How well it works:** test RMSE per model, a button that re-runs the whole test set in the browser (about 2 s), the memory curve and the safety trade-off.
+
+To rebuild it after changing a model (needs the data and the saved models from notebooks 01, 03 and 04):
+```
+python demo/build_demo.py
+```
+The script re-checks the page's maths against `outputs/results/test_predictions.csv` in numpy and stops if they differ by more than 0.05 °C.
+
+## The Streamlit demo
 ```
 streamlit run app.py
 ```
@@ -85,6 +106,7 @@ CONTRIBUTING.md      team rules: workflow, code style, logging formats
 PLAN.md  LOG.md  CONCEPTS.md  VIVA_QA.md
 requirements.txt     pinned versions (Python 3.11)
 data/README.md       dataset source, version, SHA-256 (data itself is git-ignored)
+demo/                offline browser demo: index.html (built, committed) + build_demo.py + src/
 app.py               Streamlit recorded-data replay demo (Phase 6, I5)
 showcase/            interactive web showcase: build_showcase.py + template.html (built pages are git-ignored)
 docs/problem.md      Phase 1 problem definition
