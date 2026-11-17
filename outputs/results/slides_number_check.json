@@ -1,4 +1,7 @@
 {
-  "checked": 56,
-  "missing": {}
+ "deck": "docs/slides/MST_Motor_Winding_Virtual_Sensor.pptx",
+ "numbers_checked": 122,
+ "untraced": [],
+ "constants_allowed": "step numbers 1-7, k = 0-2, 10 \u00b0C rule, 155 \u00b0C class F, 50 kW, seed 42, 1/5/15/45-min spans, 8 + 5 + 32 inputs, UCS321, statement 6, years, the 6.5 \u00b0C target",
+ "note": "Every result number on the slides is read from outputs/results/ by the deck's data script."
 }

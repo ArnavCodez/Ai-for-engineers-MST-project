@@ -11,11 +11,11 @@ We estimate the **stator winding temperature (°C)** of an electric motor from s
 | 4 | 9 models, session-wise 5-fold CV; finalists MLP, LightGBM, Ridge (`notebooks/04_modelling.ipynb`) | ✅ |
 | 5 | Test set used **once** (2026-10-10 09:24:52): MLP RMSE 6.00 °C, Ridge 4.97, LightGBM 5.11; targets met (`notebooks/05_evaluation.ipynb`) | ✅ |
 | 6 | Innovation: ablation, memory curve, safety alarm, data efficiency (`notebooks/06_innovation.ipynb`) + demo `app.py` | ✅ |
-| 7 | Flow diagram, report (`docs/report/report.md`), 12 slides, `MST_final.ipynb`, interactive showcase (`showcase/`): done. **Mock viva for every member still to do** | almost |
+| 7 | Flow diagram, report (`docs/report/report.md`), 13 slides (`docs/slides/MST_Motor_Winding_Virtual_Sensor.pptx`), `MST_final.ipynb`, interactive showcase (`showcase/`): done. **Mock viva for every member still to do** | almost |
 
 **Headline result:** a virtual sensor that estimates the winding temperature of unseen sessions with RMSE about 5–6 °C, against 24.5 °C for "coolant + offset". The EWMA thermal-memory features are worth more than 8 °C (ablation: 4.92 → 13.18 °C without them).
 
-The **interactive showcase (present this)**, the **slides**, the **live team tracker** and the **EDA showcase** are published online; ask Arnav for the links. Offline: `showcase/motor_showcase.html` (after building it) and `docs/showcase/index.html`.
+**Slides:** `docs/slides/MST_Motor_Winding_Virtual_Sensor.pptx` (PowerPoint, fonts embedded, speaker notes on every slide). The **interactive showcase (present this)**, the **live team tracker** and the **EDA showcase** are published online; ask Arnav for the links. Offline: `showcase/motor_showcase.html` (after building it) and `docs/showcase/index.html`.
 
 ## Start here (new teammate)
 Read these in order. Viva questions can go to **anyone**, so read all of them:

@@ -1,6 +1,10 @@
 # Machine-learning virtual sensor for electric-motor winding temperature
 
-**UCS321 AI for Engineers · MST mini project, statement #6 (GE Power Systems scenario)** · TIET Patiala, B.E. ECE, Semester III · Team of 5 (see the contributions section)
+**UCS321 AI for Engineers · MST mini project, statement #6 (GE Power Systems scenario)** · TIET Patiala, B.E. ECE, Semester III · Supervisor: Dr. Jyoti Maggu
+
+**Team:** Arnav Aggarwal (1025150338) · Armaan Malhotra (1025150339) · Tanishq Vashistha (1025150341) · Ishita Sharma (1025150345) · Abhilasha Das (1025150396)
+
+**GitHub:** https://github.com/ArnavCodez/Ai-for-engineers-MST-project
 
 > Every number in this report is copied from a file in `outputs/results/` (named in brackets), produced by the notebooks in `notebooks/`. The full step-by-step reasoning is in `LOG.md`.
 
@@ -44,6 +48,10 @@ We built a supervised regression model that estimates the **stator winding tempe
 - **Effect:** the best memory feature (`i_s_ewma_600`, r = 0.705) beats raw i_s (0.583).
 - **Scaling:** StandardScaler inside sklearn Pipelines (linear models, MLP). Trees are unscaled.
 
+![Project flow chart](../flow_diagram.png)
+
+*Figure 1. The full pipeline: data, visualisation and pre-processing, modelling, evaluation and innovation (`docs/flow_diagram.png`).*
+
 ## 3. Model development and implementation (rubric: 12 marks)
 - **Protocol** (`cv_results.csv`, `modelling_summary.json`): GroupKFold(5) by session on every 10th training row (118,980 rows; thinning measured to cost nothing: 5.146 vs 5.061 °C). Every model saw the same rows and folds. RMSE is the selection metric. No random early stopping.
 - **Results (CV RMSE mean ± std, °C):**
@@ -67,7 +75,7 @@ We built a supervised regression model that estimates the **stator winding tempe
 ## 4. Performance evaluation and interpretation (rubric: 8 marks)
 **Test set used once, at 2026-10-10 09:24:52** (`evaluation_summary.json`, `test_metrics.csv`, `test_metrics_per_profile.csv`, figures `eval_01`–`eval_12`).
 
-| Model | Test RMSE | MAE | R² | p95 |e| | Mean signed | Session-mean MAE |
+| Model | Test RMSE | MAE | R² | p95 abs. error | Mean signed | Session-mean MAE |
 |---|---|---|---|---|---|---|
 | M3 Ridge | **4.97** | 2.99 | 0.963 | 9.03 | +0.38 | 2.85 |
 | M5 LightGBM | 5.11 | **2.86** | 0.961 | 9.88 | −0.87 | **2.38** |
@@ -82,21 +90,34 @@ We built a supervised regression model that estimates the **stator winding tempe
   - **Hot temperatures:** above 90 °C the MLP under-predicts by about 6 °C. In 52.0 % of hot rows (≥ 104.79 °C) it is more than 5 °C too low (LightGBM 27.0 %).
 - **Physics check** (grouped permutation importance, RMSE increase in °C): coolant 19.67 > voltage 16.11 > speed 15.40 > current 11.32 > power 8.96 > torque 2.45 > ambient 0.52. This is consistent with coolant setting the floor, I²R heating, and speed-dependent iron losses.
 
+![Cross-validation RMSE against test RMSE for each model](../../outputs/figures/eval_12_cv_vs_test.png)
+
+*Figure 2. Cross-validation vs test RMSE for every model (`eval_12_cv_vs_test.png`).*
+
+![Test session 66: real winding temperature against the MLP estimate](../../outputs/figures/eval_05_test_session_66.png)
+
+*Figure 3. Unseen test session 66 (5.07 h): real sensor vs MLP estimate, RMSE 3.71 °C (`eval_05_test_session_66.png`).*
+
 ## 5. Innovation and creativity (rubric: 5 marks)
 All the experiments use the final MLP, the same 118,980 training rows and the same session folds. The test set is not re-used (`innovation_summary.json`, figures `innov_01`–`innov_04`).
 
-- **I1. Ablation.** CV RMSE (°C) for each input set:
+**I1. Ablation.** CV RMSE (°C) for each input set:
 
-  | Variant | Features | CV RMSE (°C) | vs full |
-  |---|---|---|---|
-  | full | 45 | 4.92 | — |
-  | no EWMA memory | 13 | 13.18 | **+8.26** |
-  | no physics features | 24 | 6.56 | +1.64 |
-  | no torque | 39 | 4.81 | −0.11 |
-  | raw only | 8 | 13.41 | +8.49 |
-  | with forbidden temperatures | 48 | 1.15 | −3.77 (the cheat) |
+| Variant | Features | CV RMSE (°C) | vs full |
+|---|---|---|---|
+| full | 45 | 4.92 | — |
+| no EWMA memory | 13 | 13.18 | **+8.26** |
+| no physics features | 24 | 6.56 | +1.64 |
+| no torque | 39 | 4.81 | −0.11 |
+| raw only | 8 | 13.41 | +8.49 |
+| with forbidden temperatures | 48 | 1.15 | −3.77 (the cheat) |
 
-  The memory features are the most valuable idea. Torque is redundant (≈ i_q). Adding the neighbouring sensors makes the task trivial, which proves they must be excluded.
+The memory features are the most valuable idea. Torque is redundant (≈ i_q). Adding the neighbouring sensors makes the task trivial, which proves they must be excluded.
+
+![Ablation: cross-validation RMSE for each input set](../../outputs/figures/innov_01_ablation.png)
+
+*Figure 4. Ablation: what each idea is worth (`innov_01_ablation.png`).*
+
 - **I2. Thermal-memory curve.** CV RMSE: 13.18 (no memory) → 9.17 (1 min) → 5.16 (+5 min) → 5.00 (+15 min) → 4.92 °C (+45 min). Five minutes of memory gives most of the gain, consistent with the 2.5-minute median lag found in EDA.
 - **I3. Safety-aware alarm.** Alarm if estimate + k·σ ≥ 104.79 °C, with σ = 4.959 °C (out-of-fold, training sessions only). Hot rows caught: 57.2 % → 66.4 % → 70.0 % for k = 0 / 1 / 2. False alarms: 0.70 % → 2.30 % → 5.84 %. Precision: 90.4 % → 76.8 % → 57.9 % (`safety_alarm.csv`). The margin trades false alarms for caught overheating, and even k = 2 misses 30 % of hot rows, because the MLP under-reads when hot. The first 5 minutes of each test session (2.55 % of rows) have MAE 12.34 °C vs 3.47 °C afterwards (`session_start_errors.csv`): the EWMA warm-up artefact.
 - **I4. Data efficiency.** On a fixed validation set (13 of the 63 training sessions), the validation RMSE was 9.56 °C with 12 sessions, 6.36 with 25, 5.18 with 38 and 4.66 with 50. Still falling, so more recorded sessions would help.

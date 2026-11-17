@@ -389,7 +389,7 @@ Do **at least 3** of these (I1 and I3 are strongly recommended). Log each with n
    11. Limitations & future work
    12. Thank you
 
-   Each teammate presents one part.
+   Each teammate presents one part. Final deck (2026-10-15): `docs/slides/MST_Motor_Winding_Virtual_Sensor.pptx`, 13 slides with speaker notes.
 5. **Viva prep:**
    - `VIVA_QA.md` should have at least 40 Q&As.
    - Each teammate does a mock viva: pair up and quiz each other with 10 random questions from `VIVA_QA.md`, one at a time; the quizzer grades the answers against the A: lines.

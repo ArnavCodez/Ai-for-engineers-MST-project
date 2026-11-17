@@ -1549,6 +1549,73 @@ The top single features are `coolant_ewma_600`, `i_s_sq`, `motor_speed_ewma_600`
 
 ---
 
+## 2026-10-15 07:40 | Phase 7.5 | New slide deck: 13 slides in PowerPoint, blueprint style  (run by: Arnav)
+**Tags:** [RESULT] [DECISION]
+**What we did:** Rebuilt the presentation as a PowerPoint file, `docs/slides/MST_Motor_Winding_Virtual_Sensor.pptx` (13 slides, speaker notes on every slide, fonts embedded). The style takes its cue from an electronics template the team liked on Canva (cobalt blue, white hand-drawn line art), without copying it.
+**Why:** A .pptx file opens on any laptop in PowerPoint or Google Slides, every teammate can edit their own slides, and it works offline on presentation day.
+**How:**
+- **Look:** cobalt background with white hand-drawn sketches of our own objects (the motor, a stator cross-section with winding slots, a thermometer, the controller chip, a padlock for the locked test set, a coil). Small circuit symbols (thermistor, inductor, sine wave) decorate instead of generic stars; the thermistor is the sensor our model replaces.
+- **Colour rule:** amber is used only for data that matters: the estimate line, the finalists, the hot bands and one key number per slide.
+- **Fonts:** titles in Ink Free (hand-lettered, matches the sketches); body text and numbers in Bahnschrift, a DIN-style face used on engineering drawings. Both are embedded in the file.
+- **Charts:** native PowerPoint charts (they can be edited), redrawn from the result files: session 20 current step and its running averages, the CV leaderboard, test session 66, error by temperature band, ablation, memory curve, safety alarm and data efficiency.
+- **Numbers:** read straight from `outputs/results/` by a script, never typed by hand. A check found 121 numbers on the slides, all traced to the result files or a stated constant (`outputs/results/slides_number_check.json`, which now refers to this deck).
+**Result:** 13 slides in 5 sections: problem and data (1–3), method (4–6), results (7–9), innovation (10–12), wrap-up (13). The file passed an Office file-format check and was rendered slide by slide in PowerPoint to check for overlaps and overflow.
+**Nuances / gotchas:**
+- The cover and closing slides still carry `[Member B]` to `[Member E]`: fill in the names in PowerPoint.
+- The fonts are embedded, so the deck looks the same on another Windows laptop. On a Mac, Ink Free may fall back to another font; the layout still holds.
+- The demo slide shows a screenshot of our own showcase page inside a sketched laptop. Present the live page or `streamlit run app.py` at that point.
+**Alternatives considered:** Keeping the earlier online slide deck. The PowerPoint file is easier for every teammate to edit and present offline.
+**Viva angle:** —
+
+---
+
+## 2026-10-15 09:10 | Phase 7.5 | Slide deck restyled: Mali headings, one layout grid  (run by: Arnav)
+**Tags:** [DECISION]
+**What we did:** Changed the deck's fonts and tightened its layout. The file and content are the same as in the 07:40 entry (13 slides, same numbers).
+**Why:** Arnav picked the heading font from the reference template, and the first version's layout drifted from slide to slide.
+**How:**
+- **Headings:** Mali Bold in capitals, the font of the Canva template the team chose (an open-licence Google Font, SIL OFL 1.1). Installed on Arnav's laptop and embedded in the .pptx. Frame labels use Mali Regular, so one handwriting face runs through the deck.
+- **Body text:** Bahnschrift SemiLight. **Big numbers:** Bahnschrift SemiBold Condensed, so data reads like an instrument display.
+- **One grid on every slide:** 0.6 in margins, a 7.6 in left column for charts, a 3.98 in right column for numbers and notes, and the same caption position on every chart.
+- Numbers never break away from their units (°C, %, h, min stay on the same line). Sources moved into the footer of each slide.
+**Result:** The deck was rendered slide by slide in PowerPoint with no overflow or overlaps. Fonts embedded: Mali and Bahnschrift. Number check: 122 numbers on the slides, all traced to `outputs/results/` (`slides_number_check.json`).
+**Nuances / gotchas:** Mali is embedded, so the deck looks the same on other laptops in PowerPoint. Google Slides ignores embedded fonts but offers Mali in its own font list.
+**Alternatives considered:** Bahnschrift SemiBold Condensed headings (clean, but less like the chosen template), Franklin Gothic, Gill Sans and Segoe UI (compared on one test slide; generic or awkward digits).
+**Viva angle:** —
+
+---
+
+## 2026-10-15 12:34 | Phase 7.6 | Final presentation built in Canva, following the teacher's outline  (run by: Arnav)
+**Tags:** [DECISION]
+**What we did:** Built the presentation the team will submit and present: the Canva design "MST Motor Winding Virtual Sensor" (12 slides), made from the "Blue Modern Tech Sensor & Data Presentation" template the team picked.
+**Why:** The teacher showed the expected slide structure on the whiteboard (title; abstract; introduction; methodology with dataset, preprocessing and flow chart; experiments and results; conclusion, future work and references). The PowerPoint deck from 07:40 follows our own structure instead.
+**How:**
+- **Order:** 1 title, 2 abstract, 3 introduction (problem, related work [1]-[4], our gap), 4 motivation and objectives, 5 data and preprocessing, 6 algorithm flow chart, 7 experimental setup, 8 quantitative results, 9 qualitative results and ablation, 10 discussion, 11 conclusion, future work and references, 12 thank you.
+- The template's router, satellite, tower and wave icons were replaced with our own motor, stator, coil and thermometer drawings.
+- Every slide has speaker notes. The ~300-word abstract is in the notes of slide 2.
+- Every number was copied from `outputs/results/`.
+**Result:** 12 slides, saved in Canva. Edit link: https://www.canva.com/d/MazkDz_BZfn1a1V
+**Nuances / gotchas:** The cover still shows `[Member B]` to `[Member E]` and `[Teacher's name]`. The reference list on slide 11 uses Canva's default font.
+**Alternatives considered:** Submitting the 13-slide PowerPoint deck (kept in `docs/slides/` as a backup).
+**Viva angle:** —
+
+---
+
+## 2026-10-17 21:15 | Phase 7.7 | Submission package for mini-project 1  (run by: Arnav)
+**Tags:** [DECISION]
+**What we did:** Prepared the files the submission form asks for: `Code1_XX.zip` (code and data, at most 100 MB) and `Report1_XX.pdf` (report). Both are in `Project stuff/Submission/Project1_MST/`, outside this repo, and XX is our group number.
+**Why:** The form asks for each project's code and data as a zip and its report as a PDF, with the GitHub link in the report and the slides.
+**How:**
+- **Zip contents:** the code, notebooks with saved outputs, results, figures, saved models, docs and showcase, plus `data/processed/measures_v2.parquet` (the full dataset as a float32 copy) and a short `HOW_TO_RUN.md`.
+- **Left out:** the raw 300 MB CSV (too big for the limit; `src/download_data.py` downloads it) and `features.parquet` (300 MB; notebook 03 rebuilds it).
+- **Report:** `docs/report/report.md` gained the GitHub link and four figures (flow chart, CV vs test, test session 66, ablation). The ablation table was moved out of a list, and a header containing a stray pipe character was renamed, so both tables render. The report was printed to PDF with a cover page (group, supervisor, GitHub link, names and roll numbers).
+**Result:** Zip 75.6 MB; report PDF 7 pages, 0.78 MB. A check found no tool mentions in the zipped files.
+**Nuances / gotchas:** The PPT upload must combine mini-projects 1 and 2, and project 2 (EST) has not started yet. The group number, the B to E names and the roll numbers still have to be filled in.
+**Alternatives considered:** Zipping the raw CSV instead of the parquet copy (would exceed 100 MB).
+**Viva angle:** —
+
+---
+
 ## 2026-10-19 21:00 | Phase 7.8 | Demo: own-values tab and performance tab  (run by: Arnav)
 **Tags:** [RESULT]
 **What we did:** Split `app.py` into three tabs: the existing replay, "Try your own values" and "Model performance". Added `run_demo.bat`, which makes the venv on the first run and starts the demo on port 8501. Rebuilt `Code1_29.zip` with both.
