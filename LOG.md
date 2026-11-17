@@ -1646,3 +1646,20 @@ The top single features are `coolant_ewma_600`, `i_s_sq`, `motor_speed_ewma_600`
 **Viva angle:** Q: "How do we know the browser gives the same answer as Python?" A: The page re-runs every test row on load and compares with the saved Phase 5 predictions; the builder does the same check in numpy before it writes the page.
 
 ---
+
+## 2026-11-17 23:30 | Phase 7.10 | README rewrite  (run by: Arnav)
+**Tags:** [SETUP]
+**What we did:** Rewrote `README.md` around the browser demo, in the same shape as the EST README, and added four demo screenshots in `docs/demo/`.
+**Why:** The README only had Windows setup steps and did not explain how to open the demo, what it shows or how the model works.
+**How:**
+- **Open the demo** on Windows, macOS and Linux.
+- **What the demo shows** and a five-minute demo script.
+- **The project itself:** the dataset with every column and our split, how the model works, the results table and how the browser demo works.
+- **Run it yourself:** setup steps for Windows and for macOS and Linux (including `brew install libomp` for LightGBM on macOS), and a table of the notebooks.
+- **Kept:** the teammate workflow and the ground rules.
+**Result:** One README that takes a newcomer from cloning to running the demo or the notebooks on any of the three systems.
+**Nuances / gotchas:** —
+**Alternatives considered:** —
+**Viva angle:** —
+
+---
